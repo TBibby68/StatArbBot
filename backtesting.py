@@ -5,10 +5,85 @@ import pandas as pd
 from EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from config import engine_string
+from pykalman import KalmanFilter
 
 # stocks we have data on to potentially trade = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
 # SECTION 1: DEFINING FUNCTIONS:
+
+def update_kalman_beta(prev_beta, prev_cov, x_new, y_new, kf):
+    """
+    Update the Kalman filter for one new observation.
+    
+    Parameters
+    ----------
+    prev_beta : float
+        Previous beta estimate.
+    prev_cov : ndarray
+        Previous state covariance matrix (1x1 matrix).
+    x_new : float
+        New stock1 price (the independent variable).
+    y_new : float
+        New stock2 price (the dependent variable).
+    kf : KalmanFilter
+        A configured pykalman KalmanFilter object.
+        
+    Returns
+    -------
+    new_beta : float
+        Updated beta estimate.
+    new_cov : ndarray
+        Updated state covariance matrix.
+    """
+    # reshape x_new into the required (1,1) observation matrix
+    obs_matrix = np.array([[x_new]])
+
+    # run one-step Kalman update
+    new_state_mean, new_state_cov = kf.filter_update(
+        filtered_state_mean = np.array([prev_beta]),
+        filtered_state_covariance = prev_cov,
+        observation = y_new,
+        observation_matrix = obs_matrix
+    )
+
+    new_beta = new_state_mean[0]
+
+    return new_beta, new_state_cov
+
+def compute_beta_kalman_initial(stock1_prices, stock2_prices):
+    """
+    Estimate time-varying hedge ratio between two time series using Kalman filter.
+
+    Returns:
+        1) numpy array of beta estimates (same length as input series)
+        2) covariance matrix so we can calculate the next beta iteratively
+        3) the Kalman filter object
+    """
+    # convert the stock price series into arrays(a stack of T (1x1) arrays)
+    X = stock1_prices.values.reshape(-1, 1, 1)
+    y = stock2_prices.values
+
+    # here we are modelling: y_t = H_t.x_t + e_t,
+    # where H is our hedge ratio at time t (just a series of values in a linear regression instead of 1 constant value). 
+    # the strategy for lower latency is to calculate this initially, but then only increment it every time step after that, so we don't
+    # calculate the full 2 weeks of data every minute. The Kalman filter calculates based on the previos beta 
+
+    kf = KalmanFilter(
+        transition_matrices=[1],
+        observation_matrices=X,
+        initial_state_mean=0,
+        initial_state_covariance=1,
+        observation_covariance=5**2,
+        transition_covariance=0.01
+    )
+    
+    state_means, state_covs = kf.filter(y)
+    # gt the latest covariance matrix
+    latest_covariance = state_covs[-1]
+    beta_estimates = state_means[:, 0]
+    # grab the latest hedge ratio to use for the signal generation
+    latest_beta = beta_estimates[-1]
+    return latest_beta, latest_covariance, kf
 
 def compute_beta(stock1_prices, stock2_prices):
     """Compute the hedge ratio between 2 time series(stock prices).
@@ -265,6 +340,7 @@ while end_time <= 44000:
     best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
     current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
     stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
+    ran_initial_kalman_filter = False
 
     # initalise this list so we can keep track of returns per-pair
     current_pair_returns = []
@@ -280,8 +356,11 @@ while end_time <= 44000:
         stock1_prices = stocks_df.loc[mask, stock1]
         stock2_prices = stocks_df.loc[mask, stock2]
 
-        # calculate the hedge ratio and then the signal based on this
-        beta = compute_beta(stock1_prices,stock2_prices)
+        # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
+        if ran_initial_kalman_filter is False:
+            beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
+        else:
+            beta, covariance = update_kalman_beta(beta, covariance, stock1_prices, stock2_prices, kf)
         signal = update_and_get_signal(stock1_price, stock2_price, beta)
 
         # simulate the trade based on the signal
