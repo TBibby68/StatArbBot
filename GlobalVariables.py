@@ -13,5 +13,6 @@ max_profit = 0
 max_drawdown = 0
 entry_price_stock1 = 0
 entry_price_stock2 = 0
+ran_initial_kalman_filter = False
 
 trade_returns = []

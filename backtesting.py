@@ -24,7 +24,7 @@ def update_kalman_beta(prev_beta, prev_cov, x_new, y_new, kf):
     x_new : float
         New stock1 price (the independent variable).
     y_new : float
-        New stock2 price (the dependent variable).
+        New stock2 price (the dependent variable). 
     kf : KalmanFilter
         A configured pykalman KalmanFilter object.
         
@@ -73,8 +73,8 @@ def compute_beta_kalman_initial(stock1_prices, stock2_prices):
         observation_matrices=X,
         initial_state_mean=0,
         initial_state_covariance=1,
-        observation_covariance=5**2,
-        transition_covariance=0.01
+        observation_covariance=50000, # high = 25 / low <= 1 => less sensitive to volatility as it assumes more noise
+        transition_covariance=0.0001 # high = 0.1 => more sensitive to changes over time 
     )
     
     state_means, state_covs = kf.filter(y)
@@ -226,7 +226,8 @@ def find_new_pair_and_close_current_position(window_id, engine, stock1_price, st
     if GlobalVariables.last_signal != "CLOSE":
         simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_pair_returns=current_pair_returns)
         GlobalVariables.last_signal = "CLOSE"
-
+    # reset the kalman filter flag for the next pair
+    GlobalVariables.ran_initial_kalman_filter = False
     return best_pair
 
 def UpdateCurrentStockPair(best_pair):
@@ -340,7 +341,6 @@ while end_time <= 44000:
     best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
     current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
     stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
-    ran_initial_kalman_filter = False
 
     # initalise this list so we can keep track of returns per-pair
     current_pair_returns = []
@@ -357,10 +357,11 @@ while end_time <= 44000:
         stock2_prices = stocks_df.loc[mask, stock2]
 
         # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
-        if ran_initial_kalman_filter is False:
+        if GlobalVariables.ran_initial_kalman_filter is False:
             beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
+            GlobalVariables.ran_initial_kalman_filter = True
         else:
-            beta, covariance = update_kalman_beta(beta, covariance, stock1_prices, stock2_prices, kf)
+            beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
         signal = update_and_get_signal(stock1_price, stock2_price, beta)
 
         # simulate the trade based on the signal
