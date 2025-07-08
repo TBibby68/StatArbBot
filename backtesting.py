@@ -47,7 +47,6 @@ def update_kalman_beta(prev_beta, prev_cov, x_new, y_new, kf):
     )
 
     new_beta = new_state_mean[0]
-
     return new_beta, new_state_cov
 
 def compute_beta_kalman_initial(stock1_prices, stock2_prices):
@@ -72,10 +71,13 @@ def compute_beta_kalman_initial(stock1_prices, stock2_prices):
         transition_matrices=[1],
         observation_matrices=X,
         initial_state_mean=0,
-        initial_state_covariance=1,
-        observation_covariance=50000, # high = 25 / low <= 1 => less sensitive to volatility as it assumes more noise
-        transition_covariance=0.0001 # high = 0.1 => more sensitive to changes over time 
+        initial_state_covariance=0.01,
+        observation_covariance=25, # high = 25 / low <= 1 => less sensitive to volatility as it assumes more noise
+        transition_covariance=0.01 # high = 0.1 => more sensitive to changes over time 
     )
+
+    # for a string covariance relationship, we typically want the transition covariance to be low, observation to be high(but noisy data means a little higher), 
+    # transition matrix to be 1, 0 initial state mean, initial state covariance small.
     
     state_means, state_covs = kf.filter(y)
     # gt the latest covariance matrix
@@ -83,6 +85,7 @@ def compute_beta_kalman_initial(stock1_prices, stock2_prices):
     beta_estimates = state_means[:, 0]
     # grab the latest hedge ratio to use for the signal generation
     latest_beta = beta_estimates[-1]
+    print("this is the latest beta: ", latest_beta)
     return latest_beta, latest_covariance, kf
 
 def compute_beta(stock1_prices, stock2_prices):
@@ -174,7 +177,7 @@ def simulate_close_trade(stock1_price, stock2_price, current_pair_returns):
     GlobalVariables.stock1_stock = 0
     GlobalVariables.stock2_stock = 0
 
-def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
+def simulate_open_trade(stock1_price, stock2_price, hedge_ratio, position_sizing_factor):
     """Calculates the resulting PnL of opening a position with the current stock prices and hedge ratio.
     
         This function updates several Global Variables that keep track of the current PnL of the bot, and 
@@ -191,12 +194,12 @@ def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
     GlobalVariables.number_of_signals += 1
     if GlobalVariables.z_scores[-1] > 0: # testing the current z score
         # z positive: spread is too high → short A, long B
-        GlobalVariables.stock1_stock -= 10 / stock1_price 
-        GlobalVariables.stock2_stock += hedge_ratio * 10 / stock2_price
+        GlobalVariables.stock1_stock -= position_sizing_factor * 10 / stock1_price 
+        GlobalVariables.stock2_stock += position_sizing_factor * hedge_ratio * 10 / stock2_price
     else:
         # z negative: spread is too low → long A, short B
-        GlobalVariables.stock1_stock += hedge_ratio * 10 / stock1_price 
-        GlobalVariables.stock2_stock -= 10 / stock2_price 
+        GlobalVariables.stock1_stock += position_sizing_factor * hedge_ratio * 10 / stock1_price 
+        GlobalVariables.stock2_stock -= position_sizing_factor * 10 / stock2_price 
 
     # keep track of the entry prices
     GlobalVariables.entry_price_stock1 = stock1_price
@@ -362,12 +365,14 @@ while end_time <= 44000:
             GlobalVariables.ran_initial_kalman_filter = True
         else:
             beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
-        signal = update_and_get_signal(stock1_price, stock2_price, beta)
+        signal, position_sizing_factor = update_and_get_signal(stock1_price, stock2_price, beta)
 
         # simulate the trade based on the signal
         if signal == "OPEN":
-            simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
+            print("Opening a position")
+            simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta, position_sizing_factor = position_sizing_factor)
         elif signal == "CLOSE":
+            print("closing a posiiton")
             simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
 
     trade_returns_series = pd.Series(current_pair_returns)
