@@ -21,6 +21,16 @@ exist, and thus essential for our strategy to work.
 The bot works on a rolling 2 week window, meaning that we test the previous 3 months of data for this cointgration relationship, and then if we find that a pair has this relationship, we trade on that pair for the next 2 weeks, at which point
 we then recalculate the cointegration, and if the relationship has broken down, we close out the current position if one is open, and we try to find another pair to trade for the next 2 weeks. 
 
+## Assumptions:
+
+The key assumptions of this strategy (which are not very realistic) are that we are trading in a perfectly liquid market, with effectively infinite volumes, meaning that there is no risk posed by reductions in liquidity and thus inability to close positions, and there is also negligable spread. We also assume zero slippage, and then zero impact on the market from our trades. Essentially this is the "perfect" set of conditions for a trading strategy. 
+
+The purpose of this project is to investigate the statistical models that can produce a successful alpha generating strategy - implementing this in real life is another step.
+
+## Kalman filters:
+
+
+
 ## Project Structure:
 
 This project is a work in progress, and currently the focus is on refining the strategy in backtests so that it has a sharpe ratio estimate of above 0.5. Because of this, the most 
