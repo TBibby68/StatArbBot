@@ -9,6 +9,8 @@ import GlobalVariables
 
 # NOTE: keep this file for normal stocks only, and then we can have a separate file for crypto
 
+# NOTE: THIS WILL NOT WORK WITH WEBSOCKETS 15+, SO PUT THIS IN A DIFFERENT ENVIRONMENT THAN THE YFINANCE BACKTEST
+
 # method to compute the analytical solution for the hedge ratio from a linear regression between the two stocks. 
 # we will use around 200 minute rolling history for this beta as we trade around every 30 minutes. 
 def compute_beta(aapl_prices, msft_prices):
