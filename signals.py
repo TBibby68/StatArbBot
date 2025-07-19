@@ -28,8 +28,8 @@ def update_and_get_signal(price_a, price_b, beta=1.0):
 
     # Example signal logic: definitely needs some work: it's currently just entering and has no exit logic essentially
     if abs(z) > 1.5 and GlobalVariables.last_signal != "OPEN":
-
-        position_size_factor = abs(z) - 1.5
+        # the further we get away from the threshold the riskier the signal is so we hedge by reducing the position size
+        position_size_factor = 1 / (abs(z) - 1.5)
         GlobalVariables.last_signal = "OPEN"
         return "OPEN", position_size_factor # this is the signal to buy into the swap
     elif abs(z) < 0.5 and GlobalVariables.last_signal == "OPEN": # can't start with a close!

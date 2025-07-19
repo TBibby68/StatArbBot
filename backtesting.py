@@ -360,11 +360,14 @@ while end_time <= 44000:
         stock2_prices = stocks_df.loc[mask, stock2]
 
         # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
-        if GlobalVariables.ran_initial_kalman_filter is False:
-            beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
-            GlobalVariables.ran_initial_kalman_filter = True
-        else:
-            beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
+        # if GlobalVariables.ran_initial_kalman_filter is False:
+        #     beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
+        #     GlobalVariables.ran_initial_kalman_filter = True
+        # else:
+        #     beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
+
+        # in initial backtests it seems like the Kalman filter doesn't improve alpha generation - store it as a module for later
+        beta = compute_beta(stock1_prices, stock2_prices)
         signal, position_sizing_factor = update_and_get_signal(stock1_price, stock2_price, beta)
 
         # simulate the trade based on the signal
