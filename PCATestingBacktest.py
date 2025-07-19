@@ -6,7 +6,7 @@ import pandas as pd
 # stocks in that vector, and test on that basket.  
 
 # 1) import tickers from excel using pandas:
+df = pd.read_excel("banks to trade on.xlsx")
+print(df)
 
-
-
-data = yf.download(tickers, start="2010-01-01", end="2024-01-01")['Adj Close']
+#data = yf.download(tickers, start="2010-01-01", end="2024-01-01")['Adj Close']
