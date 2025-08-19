@@ -9,6 +9,7 @@ import GlobalVariables
 from sqlalchemy import create_engine # for the 3 months to jump start it
 from config import engine_string
 import pandas as pd
+from collections import deque
 
 # NOTE: keep this file for normal stocks only, and then we can have a separate file for crypto
 
@@ -36,6 +37,9 @@ def compute_beta(aapl_prices, msft_prices):
 # perform the trades and calculate when the spread has widened enough to enter a position
 
 stock1_price = None
+# price queues for the beta calculations
+stock1_prices = deque(maxlen=200)
+stock2_prices = deque(maxlen=200)
 initial_pair = find_initial_pair(engine)
 stock1_ticker = initial_pair[0].iloc[0]
 stock2_ticker = initial_pair[1].iloc[0]
@@ -74,15 +78,15 @@ async def alpaca_socket():
                         if item.get("T") == "b": # an OHLCV bar message: this is the response we need
                             if item.get("S") == stock1_ticker:
                                 stock1_price = item["c"]  # close price of stock 1 
-                                print(f"this is {stock1_ticker} price " + str(stock1_price))
+                                stock1_prices.Append(stock1_price)
                             elif item.get("S") == stock2_ticker:
                                 stock2_price = item["c"] # close price of stock 2
-                                print(f"this is {stock2_ticker} price " + str(stock2_price))
+                                stock2_prices.Append(stock2_price)
                 
-                            if stock2_price is not None and stock1_price is not None:
+                            if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) > 200:
                                 # need to make sure that we have 200 minutes of rolling history 
-                                #beta = compute_beta(aapl_prices, msft_prices)
-                                signal = update_and_get_signal(stock1_price, stock2_price, 1) # want this to return the z scores queue as well
+                                beta = compute_beta(stock1_prices, stock2_prices)
+                                signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
                                 if signal not in (None, GlobalVariables.last_signal):
                                     # need to pull through the current and previous z scores: current is -1 and previous is 0
                                     place_pair_trade(stock1_ticker, stock2_ticker, 10, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
