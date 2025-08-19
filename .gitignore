@@ -404,3 +404,4 @@ config.py
 KDB_init.py
 runningQfromPython.py
 yfinance API call.py
+db_config.ini
