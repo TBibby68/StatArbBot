@@ -112,11 +112,21 @@ async def alpaca_socket():
                         if item.get("T") == "b": # an OHLCV bar message: this is the response we need
                             if item.get("S") == stock1_ticker:
                                 stock1_price = item["c"]  # close price of stock 1 
-                                stock1_prices.Append(stock1_price)
+                                stock1_prices.append(stock1_price)
+                                # convert to a queue so adding the price is faster
+                                s1_prices = deque(state["stock1_prices"]["values"], maxlen=200)
+                                s1_prices.append(stock1_price)
+                                state["stock1_prices"]["values"] = list(s1_prices)
+                                state["stock1_prices"]["length"] = 200
+                                save_state(state)
                             elif item.get("S") == stock2_ticker:
                                 stock2_price = item["c"] # close price of stock 2
-                                stock2_prices.Append(stock2_price)
+                                stock2_prices.append(stock2_price)
                                 # save the state every time we pull a new price (every minute)
+                                s2_prices = deque(state["stock2_prices"]["values"], maxlen=200)
+                                s2_prices.append(stock2_price)
+                                state["stock2_prices"]["values"] = list(s2_prices)
+                                state["stock2_prices"]["length"] = 200
                                 save_state(state)
                 
                             if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) > 200:
@@ -124,9 +134,17 @@ async def alpaca_socket():
                                 beta = compute_beta(stock1_prices, stock2_prices)
                                 signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
                                 if signal not in (None, GlobalVariables.last_signal):
+                                    volume = 10
                                     # need to pull through the current and previous z scores: current is -1 and previous is 0
-                                    place_pair_trade(stock1_ticker, stock2_ticker, 10, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
+                                    place_pair_trade(stock1_ticker, stock2_ticker, volume, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
                                     GlobalVariables.last_signal = signal
+                                    # update the state variables:
+                                    state["last_zscore"] = GlobalVariables.z_scores[-1]
+                                    state["last_signal"] = signal
+                                    # ternary operator in python is just inline if
+                                    state["current_position"]["stock1"] = volume if signal == "OPEN" else 0
+                                    state["current_position"]["stock2"] = -volume if signal == "OPEN" else 0
+                                    save_state(state)
                 else:
                     print("Non-bar message:", data)
     except websockets.exceptions.InvalidStatusCode as e:
