@@ -10,6 +10,7 @@ def place_pair_trade(symbol_a, symbol_b, qty, currentZscore, previousZscore, sig
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
     If signal is 'OPEN', opens a long/short position based on z direction.
     If signal is 'CLOSE', closes both positions by placing opposing orders.
+    it is important to note that qty is the units, not the absolute amount!
     """
 
     try:

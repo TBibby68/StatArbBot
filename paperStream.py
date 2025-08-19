@@ -80,6 +80,7 @@ async def alpaca_socket():
                                 print(f"this is {stock2_ticker} price " + str(stock2_price))
                 
                             if stock2_price is not None and stock1_price is not None:
+                                # need to make sure that we have 200 minutes of rolling history 
                                 #beta = compute_beta(aapl_prices, msft_prices)
                                 signal = update_and_get_signal(stock1_price, stock2_price, 1) # want this to return the z scores queue as well
                                 if signal not in (None, GlobalVariables.last_signal):
@@ -92,4 +93,4 @@ async def alpaca_socket():
         print(f"WebSocket failed with HTTP status: {e.status_code}")
 
 asyncio.run(alpaca_socket())
-# this seems to be working for getting minute by minute data
+# this seems to be working for getting minute by minute data.
