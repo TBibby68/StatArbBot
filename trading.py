@@ -37,7 +37,7 @@ def place_pair_trade(symbol_a, symbol_b, qty, currentZscore, previousZscore, sig
                 # z negative: spread is too low → long A, short B
                 side_a = "sell"
                 side_b = "buy"
-            # Always close by reversing current positions (assumes symmetrical qty)
+            # Always close by reversing current positions (assumes symmetrical qty) - THIS DOES UNITS NOT AMOUNT
             api.submit_order(symbol=symbol_a, qty=qty, side=side_a, type=order_type, time_in_force=time_in_force)
             api.submit_order(symbol=symbol_b, qty=qty, side=side_b, type=order_type, time_in_force=time_in_force)
             print(f"[CLOSE] BUY {qty} {symbol_a} | SELL {qty} {symbol_b}")

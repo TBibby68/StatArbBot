@@ -10,12 +10,46 @@ from sqlalchemy import create_engine # for the 3 months to jump start it
 from config import engine_string
 import pandas as pd
 from collections import deque
+import json, os, atexit, signal
 
-# NOTE: keep this file for normal stocks only, and then we can have a separate file for crypto
-
-# NOTE: THIS WILL NOT WORK WITH WEBSOCKETS 15+, SO PUT THIS IN A DIFFERENT ENVIRONMENT THAN THE YFINANCE BACKTEST
-
+# import yesterdays state:
+state_file = "state.json"
 engine = create_engine(engine_string)
+
+def load_state(path=state_file):
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}  # default empty state
+    except Exception as e:
+        print("State load failed:", e)
+        return {}
+
+def save_state(state, path=state_file):
+    # atomic write: avoid corrupting the file on crash
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+    os.replace(tmp, path)  # atomic on the same filesystem
+
+state = load_state()
+
+# ensure we save on normal interpreter exit too
+atexit.register(lambda: save_state(state))
+
+# handle Ctrl+C / scheduler stop (SIGTERM)
+def _graceful_exit(signum, frame):
+    save_state(state)
+    raise SystemExit(0)
+
+signal.signal(signal.SIGINT, _graceful_exit)
+try:
+    signal.signal(signal.SIGTERM, _graceful_exit)
+except Exception:
+    # SIGTERM may not be available in some Windows contexts; atexit still helps
+    pass
+
 # literally just query the db. 
 def find_initial_pair(engine):
     df = pd.read_sql('SELECT * FROM cointegration_results WHERE window_id = 0 LIMIT 1', con=engine)
@@ -28,8 +62,8 @@ def find_initial_pair(engine):
 
 # method to compute the analytical solution for the hedge ratio from a linear regression between the two stocks. 
 # we will use around 200 minute rolling history for this beta as we trade around every 30 minutes. 
-def compute_beta(aapl_prices, msft_prices):
-    cov_matrix = np.cov(aapl_prices, msft_prices)
+def compute_beta(s1_Prices, s2_Prices):
+    cov_matrix = np.cov(s1_Prices, s2_Prices)
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]  
     return beta
 
@@ -82,6 +116,8 @@ async def alpaca_socket():
                             elif item.get("S") == stock2_ticker:
                                 stock2_price = item["c"] # close price of stock 2
                                 stock2_prices.Append(stock2_price)
+                                # save the state every time we pull a new price (every minute)
+                                save_state(state)
                 
                             if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) > 200:
                                 # need to make sure that we have 200 minutes of rolling history 
