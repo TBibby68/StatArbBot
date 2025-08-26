@@ -134,16 +134,16 @@ async def alpaca_socket():
                                 beta = compute_beta(stock1_prices, stock2_prices)
                                 signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
                                 if signal not in (None, GlobalVariables.last_signal):
-                                    volume = 10
+                                    value = 10
                                     # need to pull through the current and previous z scores: current is -1 and previous is 0
-                                    place_pair_trade(stock1_ticker, stock2_ticker, volume, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
+                                    place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
                                     GlobalVariables.last_signal = signal
                                     # update the state variables:
                                     state["last_zscore"] = GlobalVariables.z_scores[-1]
                                     state["last_signal"] = signal
                                     # ternary operator in python is just inline if
-                                    state["current_position"]["stock1"] = volume if signal == "OPEN" else 0
-                                    state["current_position"]["stock2"] = -volume if signal == "OPEN" else 0
+                                    state["current_position"]["stock1"] = value if signal == "OPEN" else 0
+                                    state["current_position"]["stock2"] = -value if signal == "OPEN" else 0
                                     save_state(state)
                 else:
                     print("Non-bar message:", data)
