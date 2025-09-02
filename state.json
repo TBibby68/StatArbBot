@@ -1,21 +1,18 @@
 {
-  "last_zscore": null,
-  "stock1_prices": 
-  {
-    "values": [],
-    "length": 200 
-  },
-    "stock2_prices": 
-  {
-    "values": [],
-    "length": 200 
-  },
-  "stock1_ticker": "",
-  "stock2_ticker": "",
-  "last_signal": "",
-  "current_position":
-  {
+  "current_position": {
     "stock1": 0,
     "stock2": 0
-  }
+  },
+  "last_signal": "",
+  "last_zscore": null,
+  "stock1_prices": {
+    "length": 200,
+    "values": []
+  },
+  "stock1_ticker": "",
+  "stock2_prices": {
+    "length": 200,
+    "values": []
+  },
+  "stock2_ticker": ""
 }
