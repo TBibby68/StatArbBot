@@ -5,7 +5,10 @@ import pandas as pd
 from EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from config import engine_string
-from pykalman import KalmanFilter
+try:
+    from pykalman import KalmanFilter
+except KalmanFilter.importlib.metadata.PackageNotFoundError:
+    KalmanFilter = None
 
 # stocks we have data on to potentially trade = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
