@@ -1,6 +1,6 @@
 from collections import deque
 import pandas as pd
-import GlobalVariables as GlobalVariables # this is so we don't have any circular imports
+from StatArbBot.Backtesting import GlobalVariables # this is so we don't have any circular imports
 
 # this is the file that contain functions that generate the signal to trade
 

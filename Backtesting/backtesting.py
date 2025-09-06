@@ -1,10 +1,10 @@
 import numpy as np
-from Backtesting import update_and_get_signal
-import GlobalVariables as GlobalVariables
+from StatArbBot.Backtesting.signals import update_and_get_signal
+from StatArbBot.Backtesting import GlobalVariables
 import pandas as pd
-from EGinPythonBACKTEST import CointegrationBacktestQuery
+from StatArbBot.Backtesting.EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
-from config import engine_string
+from StatArbBot.config import engine_string
 import importlib.metadata
 try:
     from pykalman import KalmanFilter

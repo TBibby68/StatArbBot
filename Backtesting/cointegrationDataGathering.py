@@ -3,7 +3,7 @@ from statsmodels.tsa.stattools import coint
 import itertools
 import pandas as pd
 from sqlalchemy import create_engine
-from config import engine_string
+from StatArbBot.config import engine_string
 # PULL 6 MONTHS OF COINT DATA ON A 2 WEEK ROLLING BASIS: for live trading on cloud just run this for last 2 weeks, for backteating run full 
 # 6 months. split this into 2 files
 

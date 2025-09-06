@@ -1,10 +1,10 @@
-from config import API_KEY, API_SECRET, BASE_URL, stream_url, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
+from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, stream_url, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
 import numpy as np
-from Backtesting.signals import update_and_get_signal # to get the trading signals
+from StatArbBot.Backtesting.signals import update_and_get_signal # to get the trading signals
 from alpaca_trade_api.rest import REST, TimeFrame
 from datetime import datetime, timedelta
 import pandas as pd
-import Backtesting.GlobalVariables as GlobalVariables
+import StatArbBot.Backtesting.GlobalVariables as GlobalVariables
 from statsmodels.tsa.stattools import coint
 import itertools
 # this is the file that tests which stocks are cointegrated: but only on live data, so API calls are made in this file!

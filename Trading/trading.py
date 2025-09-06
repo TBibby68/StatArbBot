@@ -1,5 +1,5 @@
 import alpaca_trade_api as tradeapi
-from config import API_KEY, API_SECRET, BASE_URL
+from StatArbBot.config import API_KEY, API_SECRET, BASE_URL
 # this is the file that handles the trade input to the alpaca API 
 
 # Set up Alpaca REST API connection to the paper trading part of the API

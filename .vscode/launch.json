@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run current script as module",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "StatArbBot.${relativeFileDirname}.${fileBasenameNoExtension}",
+      "console": "integratedTerminal",
+      "cwd": "C:/Users/tbibb"
+    }
+  ]
+}

@@ -1,9 +1,8 @@
-from config import API_KEY, API_SECRET, BASE_URL
+from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, engine_string
 from alpaca_trade_api.rest import REST, TimeFrame
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import create_engine
-from config import engine_string
 # This file is where we pull the 6 months stock data for big banks and push it to a database: FOR BACKTESTING
 
 # Create the API object: this uses a different API connection than the websocket connection that the stream uses. 

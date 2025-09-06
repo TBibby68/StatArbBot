@@ -1,0 +1,11 @@
+{
+  "python.testing.pytestArgs": ["."],
+  "python.analysis.extraPaths": [
+    "C:/Users/tbibb"
+  ],
+  "python.envFile": "${workspaceFolder}/.env",
+  "python.terminal.launchArgs": [
+    "-m"
+  ],
+  "python.terminal.cwd": "C:/Users/tbibb"
+}
