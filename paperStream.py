@@ -10,45 +10,9 @@ from sqlalchemy import create_engine # for the 3 months to jump start it
 from config import engine_string
 import pandas as pd
 from collections import deque
-import json, os, atexit, signal
+import json
 
-# import yesterdays state:
-state_file = "state.json"
 engine = create_engine(engine_string)
-
-def load_state(path=state_file):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}  # default empty state
-    except Exception as e:
-        print("State load failed:", e)
-        return {}
-
-def save_state(state, path=state_file):
-    # atomic write: avoid corrupting the file on crash
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(state, f, indent=2, sort_keys=True)
-    os.replace(tmp, path)  # atomic on the same filesystem
-
-state = load_state()
-
-# ensure we save on normal interpreter exit too
-atexit.register(lambda: save_state(state))
-
-# handle Ctrl+C / scheduler stop (SIGTERM)
-def _graceful_exit(signum, frame):
-    save_state(state)
-    raise SystemExit(0)
-
-signal.signal(signal.SIGINT, _graceful_exit)
-try:
-    signal.signal(signal.SIGTERM, _graceful_exit)
-except Exception:
-    # SIGTERM may not be available in some Windows contexts; atexit still helps
-    pass
 
 # literally just query the db. 
 def find_initial_pair(engine):
@@ -113,22 +77,10 @@ async def alpaca_socket():
                             if item.get("S") == stock1_ticker:
                                 stock1_price = item["c"]  # close price of stock 1 
                                 stock1_prices.append(stock1_price)
-                                # convert to a queue so adding the price is faster
-                                s1_prices = deque(state["stock1_prices"]["values"], maxlen=200)
-                                s1_prices.append(stock1_price)
-                                state["stock1_prices"]["values"] = list(s1_prices)
-                                state["stock1_prices"]["length"] = 200
-                                save_state(state)
                             elif item.get("S") == stock2_ticker:
                                 stock2_price = item["c"] # close price of stock 2
                                 stock2_prices.append(stock2_price)
-                                # save the state every time we pull a new price (every minute)
-                                s2_prices = deque(state["stock2_prices"]["values"], maxlen=200)
-                                s2_prices.append(stock2_price)
-                                state["stock2_prices"]["values"] = list(s2_prices)
-                                state["stock2_prices"]["length"] = 200
-                                save_state(state)
-                
+
                             if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) > 200:
                                 # need to make sure that we have 200 minutes of rolling history 
                                 beta = compute_beta(stock1_prices, stock2_prices)
@@ -138,13 +90,6 @@ async def alpaca_socket():
                                     # need to pull through the current and previous z scores: current is -1 and previous is 0
                                     place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
                                     GlobalVariables.last_signal = signal
-                                    # update the state variables:
-                                    state["last_zscore"] = GlobalVariables.z_scores[-1]
-                                    state["last_signal"] = signal
-                                    # ternary operator in python is just inline if
-                                    state["current_position"]["stock1"] = value if signal == "OPEN" else 0
-                                    state["current_position"]["stock2"] = -value if signal == "OPEN" else 0
-                                    save_state(state)
                 else:
                     print("Non-bar message:", data)
     except websockets.exceptions.InvalidStatusCode as e:
