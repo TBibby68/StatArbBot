@@ -1,6 +1,6 @@
 import numpy as np
-from signals import update_and_get_signal
-import GlobalVariables
+from Backtesting import update_and_get_signal
+import GlobalVariables as GlobalVariables
 import pandas as pd
 from EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
@@ -15,6 +15,7 @@ except importlib.metadata.PackageNotFoundError:
 
 # SECTION 1: DEFINING FUNCTIONS:
 
+# need to check whether this variable kalman filter stuff works with a single coint test every 2 weeks? I don't think it does. 
 def update_kalman_beta(prev_beta, prev_cov, x_new, y_new, kf):
     """
     Update the Kalman filter for one new observation.
@@ -329,7 +330,7 @@ def Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2):
 # stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
 current_stock_pair = ["", ""]
 engine = create_engine(engine_string)
-end_time = 24000
+end_time = 27900
 GlobalVariables.last_signal = "CLOSE" 
 stock1_price = 45230
 stock2_price = 235
@@ -338,6 +339,7 @@ current_pair_returns = []
 # SECTION 3: LOPPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
 
 # here, the index 44k is roughly 2 weeks before the end of the data, meaning that we stop once we don't have the next 2 weeks of data to backtest on. 
+# NOTE: we test 
 while end_time <= 44000:
 
     # first get the current window we are in
@@ -345,7 +347,8 @@ while end_time <= 44000:
     # then parse the results into strings, 
     # and then finally query the backtesting database for the past 3 months and next 2 weeks of data for this pair.
     window_id = get_window_id(end_time)
-    best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
+    # it needs to be the previous window's result, as at this point that's all the information we have.
+    best_pair = Calculate_Cointegrated_Pair(window_id - 1, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
     current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
     stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
 

@@ -3,14 +3,13 @@ import asyncio
 import websockets
 import json
 import numpy as np
-from signals import update_and_get_signal # to get the trading signals
+from Backtesting.signals import update_and_get_signal # to get the trading signals
 from trading import place_pair_trade # to actually do the trading
-import GlobalVariables
+import Backtesting.GlobalVariables as GlobalVariables
 from sqlalchemy import create_engine # for the 3 months to jump start it
 from config import engine_string
 import pandas as pd
 from collections import deque
-import json
 
 engine = create_engine(engine_string)
 
