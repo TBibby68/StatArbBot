@@ -16,7 +16,7 @@ engine = create_engine(engine_string)
 
 # literally just query the db. 
 def find_initial_pair(engine):
-    df = pd.read_sql('SELECT * FROM cointegration_results WHERE window_id = 0 LIMIT 1', con=engine)
+    df = pd.read_sql('SELECT * FROM cointegration_results WHERE window_id = 5 LIMIT 1', con=engine)
     pair = []
     pair.append(df['stock1'])
     pair.append(df['stock2'])
@@ -28,7 +28,7 @@ def find_initial_pair(engine):
 # we will use around 200 minute rolling history for this beta as we trade around every 30 minutes. 
 def compute_beta(s1_Prices, s2_Prices):
     cov_matrix = np.cov(s1_Prices, s2_Prices)
-    beta = cov_matrix[0, 1] / cov_matrix[1, 1]  
+    beta = cov_matrix[0, 1] / cov_matrix[1, 1]
     return beta
 
 # This file handles the streaming of prices from the alpaca API, and then calls the signals file and the trading file to actually
