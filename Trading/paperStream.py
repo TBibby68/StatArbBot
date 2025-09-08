@@ -1,4 +1,4 @@
-from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, stream_url, engine_string, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
+from ..config import API_KEY, API_SECRET, BASE_URL, stream_url, engine_string, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
 import asyncio
 import websockets
 import json
