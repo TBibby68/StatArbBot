@@ -1,4 +1,4 @@
-from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, engine_string
+from ..config import API_KEY, API_SECRET, BASE_URL, engine_string
 from alpaca_trade_api.rest import REST, TimeFrame
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
