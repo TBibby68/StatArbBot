@@ -33,6 +33,7 @@ def compute_beta(s1_Prices, s2_Prices):
 # perform the trades and calculate when the spread has widened enough to enter a position
 
 stock1_price = None
+stock2_price = None
 # price queues for the beta calculations
 stock1_prices = deque(maxlen=200)
 stock2_prices = deque(maxlen=200)
