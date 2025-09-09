@@ -14,7 +14,7 @@ engine = create_engine(engine_string)
 
 # literally just query the db. 
 def find_initial_pair(engine):
-    df = pd.read_sql('SELECT * FROM cointegration_results WHERE window_id = 5 LIMIT 1', con=engine)
+    df = pd.read_sql('SELECT * FROM live_cointegration_results WHERE p_value < 0.05 ORDER BY p_value LIMIT 1', con=engine)
     pair = []
     pair.append(df['stock1'])
     pair.append(df['stock2'])
