@@ -80,7 +80,7 @@ async def alpaca_socket():
                                 stock2_price = item["c"] # close price of stock 2
                                 stock2_prices.append(stock2_price)
 
-                            if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) > 200:
+                            if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) == 200:
                                 # need to make sure that we have 200 minutes of rolling history 
                                 beta = compute_beta(stock1_prices, stock2_prices)
                                 signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
