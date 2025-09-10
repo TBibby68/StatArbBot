@@ -13,8 +13,6 @@ def place_pair_trade(symbol_a, symbol_b, symbol_a_price, symbol_b_price, qty, cu
     it is important to note that qty is the units, not the absolute amount!
     """
 
-    
-
     try:
         if signal == "OPEN":
             if currentZscore > 0:

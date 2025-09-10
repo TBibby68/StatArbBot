@@ -45,54 +45,67 @@ stock2_ticker = initial_pair[1].iloc[0]
 async def alpaca_socket():
     global stock1_price  # so we can update it
     global stock2_price
-    try:
-        async with websockets.connect(stream_url) as ws:
-            # Authenticate with the usual details
-            auth_msg = {
-                "action": "auth",
-                "key": API_KEY,
-                "secret": API_SECRET
-            }
-            await ws.send(json.dumps(auth_msg)) # this sends the request to authenticate 
 
-            # Subscribe to bars: the exchange rate from USD to GBP will effect this a little.
-            sub_msg = {
-                "action": "subscribe",
-                "bars": [stock1_ticker, stock2_ticker]
-            }
-            # we get json responses from the API. 
-            await ws.send(json.dumps(sub_msg)) # this pulls the response 
+    while True:  # outer loop: keeps reconnecting
+        try:
+            async with websockets.connect(stream_url) as ws:
+                # Authenticate with the usual details
+                auth_msg = {
+                    "action": "auth",
+                    "key": API_KEY,
+                    "secret": API_SECRET
+                }
+                await ws.send(json.dumps(auth_msg)) # this sends the request to authenticate 
 
-            GlobalVariables.last_signal = None # to track the last order 
+                # Subscribe to bars: the exchange rate from USD to GBP will effect this a little.
+                sub_msg = {
+                    "action": "subscribe",
+                    "bars": [stock1_ticker, stock2_ticker]
+                }
+                # we get json responses from the API. 
+                await ws.send(json.dumps(sub_msg)) # this pulls the response 
 
-            while True:
-                msg = await ws.recv()
-                data = json.loads(msg)
+                GlobalVariables.last_signal = None # to track the last order 
 
-                # all response messages will be list of dictionaries
-                if isinstance(data, list):
-                    for item in data:
-                        if item.get("T") == "b": # an OHLCV bar message: this is the response we need
-                            if item.get("S") == stock1_ticker:
-                                stock1_price = item["c"]  # close price of stock 1 
-                                stock1_prices.append(stock1_price)
-                            elif item.get("S") == stock2_ticker:
-                                stock2_price = item["c"] # close price of stock 2
-                                stock2_prices.append(stock2_price)
+                while True:
+                    msg = await ws.recv()
+                    data = json.loads(msg)
 
-                            if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) == 200:
-                                # need to make sure that we have 200 minutes of rolling history 
-                                beta = compute_beta(stock1_prices, stock2_prices)
-                                signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
-                                if signal not in (None, GlobalVariables.last_signal):
-                                    value = 10
-                                    # need to pull through the current and previous z scores: current is -1 and previous is 0
-                                    place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
-                                    GlobalVariables.last_signal = signal
-                else:
-                    print("Non-bar message:", data)
-    except websockets.exceptions.InvalidStatusCode as e:
-        print(f"WebSocket failed with HTTP status: {e.status_code}")
+                    # all response messages will be list of dictionaries
+                    if isinstance(data, list):
+                        for item in data:
+                            if item.get("T") == "b": # an OHLCV bar message: this is the response we need
+                                if item.get("S") == stock1_ticker:
+                                    stock1_price = item["c"]  # close price of stock 1 
+                                    print(stock1_price)
+                                    stock1_prices.append(stock1_price)
+                                elif item.get("S") == stock2_ticker:
+                                    stock2_price = item["c"] # close price of stock 2
+                                    stock2_prices.append(stock2_price)
+                                    print(stock2_price)
+
+                                if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) == 200:
+                                    # need to make sure that we have 200 minutes of rolling history 
+                                    beta = compute_beta(stock1_prices, stock2_prices)
+                                    print(beta)
+                                    signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
+                                    if signal not in (None, GlobalVariables.last_signal):
+                                        print(signal)
+                                        value = 10
+                                        # need to pull through the current and previous z scores: current is -1 and previous is 0
+                                        place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
+                                        print("trade placed!")
+                                        GlobalVariables.last_signal = signal
+                    else:
+                        print("Non-bar message:", data)
+                        # reconnection logic:
+        except (websockets.exceptions.ConnectionClosedError,
+            websockets.exceptions.ConnectionClosedOK,
+            websockets.exceptions.InvalidStatusCode,
+            ConnectionResetError,
+            OSError) as e:
+            print(f"⚠️ Connection lost: {e}, retrying in 5 seconds...")
+            await asyncio.sleep(5)  # wait before reconnecting
 
 asyncio.run(alpaca_socket())
 # this seems to be working for getting minute by minute data.
