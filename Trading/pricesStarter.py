@@ -12,18 +12,14 @@ def main():
     # define the initial list of stocks to test
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
-    # Most liquid crypto coins (symbols)
+    # Top 6 most liquid crypto coins (symbols)
     initial_stock_batch = [
         "BTC/USD",   # Bitcoin
         "ETH/USD",   # Ethereum
         "USDT/USD",  # Tether
         "USDC/USD",  # USD Coin
         "SOL/USD",   # Solana
-        "XRP/USD",   # XRP
-        "BNB/USD",   # Binance Coin
-        "ADA/USD",   # Cardano
-        "DOGE/USD",  # Dogecoin
-        "TRX/USD"    # Tron
+        "XRP/USD"   # XRP
     ]
 
     combined = None
@@ -37,7 +33,7 @@ def main():
         ).df
 
         # Rename the 'close' column to the ticker symbol
-        df = df[["close"]].rename(columns={"close": ticker})
+        df = df[["close"]].rename(columns={"close": ticker.replace('/USD', '')})
 
         # Join it into the combined DataFrame
         if combined is None:
@@ -59,7 +55,7 @@ def main():
     engine = create_engine(engine_string)
 
     # Push DataFrame to table
-    combined.to_sql('price_data', engine, if_exists='append', index=False)
+    combined.to_sql('crypto_price_data', engine, if_exists='append', index=False)
 
     print("data added to postgres!")
 

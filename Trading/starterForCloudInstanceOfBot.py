@@ -19,7 +19,7 @@ def main():
         last2_Weeks_price_data = None
 
         # in the actual bot we want to 
-        last2_Weeks_price_data = pd.read_sql(f'SELECT * FROM price_data OFFSET {start_time} LIMIT {end_time} ', engine)
+        last2_Weeks_price_data = pd.read_sql(f'SELECT * FROM crypto_price_data OFFSET {start_time} LIMIT {end_time} ', engine)
 
         # Loop over all unique pairs
         tickers = last2_Weeks_price_data.columns.tolist()
