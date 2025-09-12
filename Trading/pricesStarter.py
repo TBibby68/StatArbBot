@@ -13,6 +13,7 @@ def main():
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
     # Top 6 most liquid crypto coins (symbols)
+    # go through these and test to see if it can get data.
     initial_stock_batch = [
         "BTC/USD",   # Bitcoin
         "ETH/USD",   # Ethereum

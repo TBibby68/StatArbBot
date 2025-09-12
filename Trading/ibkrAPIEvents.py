@@ -78,17 +78,17 @@ def main():
 
         if symbol == stock1_ticker:
             if last_minute['stock1'] != minute_bucket:
-                stock1_closes.append(bar.close)
+                stock1_prices.append(bar.close)
                 last_minute['stock1'] = minute_bucket
                 print(f"[{symbol}] Stored 1-min close {bar.close} at {minute_bucket}")
         elif symbol == stock2_ticker:
             if last_minute['stock2'] != minute_bucket:
-                stock2_closes.append(bar.close)
+                stock2_prices.append(bar.close)
                 last_minute['stock2'] = minute_bucket
                 print(f"[{symbol}] Stored 1-min close {bar.close} at {minute_bucket}")
 
         # once both stocks have at least 200 closes, we run the bot
-        if len(stock1_closes) == 200 and len(stock2_closes) == 200:
+        if len(stock1_prices) == 200 and len(stock2_prices) == 200:
             # all response messages will be list of dictionaries
             if isinstance(data, list):
                 for item in data:
