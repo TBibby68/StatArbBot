@@ -17,9 +17,13 @@ def main():
         "BTC/USD",   # Bitcoin
         "ETH/USD",   # Ethereum
         "USDT/USD",  # Tether
-        "USDC/USD",  # USD Coin
+        "BCH/USD",  # BCH Coin
         "SOL/USD",   # Solana
-        "XRP/USD"   # XRP
+        "XRP/USD",   # XRP
+        "LTC/USD",
+        "AAVE/USD",
+        "UNI/USD",
+        "LINK/USD"
     ]
 
     combined = None
@@ -55,7 +59,7 @@ def main():
     engine = create_engine(engine_string)
 
     # Push DataFrame to table
-    combined.to_sql('crypto_price_data', engine, if_exists='append', index=False)
+    combined.to_sql('more_crypto_price_data', engine, if_exists='append', index=False)
 
     print("data added to postgres!")
 

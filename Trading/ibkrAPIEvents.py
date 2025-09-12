@@ -20,7 +20,7 @@ def main():
 
     # literally just query the db. 
     def find_initial_pair(engine):
-        df = pd.read_sql('SELECT * FROM live_cointegration_results WHERE p_value < 0.05 ORDER BY p_value LIMIT 1', con=engine)
+        df = pd.read_sql("""SELECT * FROM more_crypto_live_cointegration_results WHERE p_value < 0.05 AND stock1 != 'minute' AND stock2 != 'minute' ORDER BY p_value LIMIT 1""", con=engine)
         pair = []
         pair.append(df['stock1'])
         pair.append(df['stock2'])
@@ -58,15 +58,15 @@ def main():
     ib.connect('127.0.0.1', 4002, clientId=1)
 
     # Contract setup
-    contract1 = Stock(stock1_ticker, 'SMART', 'USD')
-    contract2 = Stock(stock2_ticker, 'SMART', 'USD')
+    contract1 = Crypto(stock1_ticker, 'PAXOS', 'USD')
+    contract2 = Crypto(stock2_ticker, 'PAXOS', 'USD')
 
     # Subscribe to 5-second real-time bars for each stock
     bars1 = ib.reqRealTimeBars(contract1, 5, 'TRADES', useRTH=True)
     bars2 = ib.reqRealTimeBars(contract2, 5, 'TRADES', useRTH=True)
 
     # this is the main function that runs the bot, this is triggered when we get new prices coming in
-    def onBarUpdate(bars, hasNewBar):
+    def onBarUpdate(bars, hasNewBar, contract):
         if not hasNewBar:
             return
 
@@ -74,7 +74,7 @@ def main():
         minute_bucket = bar.time.replace(second=0, microsecond=0)
 
         # Decide which stock this is
-        symbol = getattr(bar.contract, 'symbol', 'Unknown')
+        symbol = getattr(contract, 'symbol', 'Unknown')
 
         if symbol == stock1_ticker:
             if last_minute['stock1'] != minute_bucket:
@@ -117,8 +117,10 @@ def main():
             else:
                 print("Non-bar message:", data)
 
-    bars1.updateEvent += onBarUpdate
-    bars2.updateEvent += onBarUpdate
+    # "Inject" the contract when attaching the event handler
+    bars1.updateEvent += lambda bars, hasNewBar: onBarUpdate(bars, hasNewBar, contract1)
+    bars2.updateEvent += lambda bars, hasNewBar: onBarUpdate(bars, hasNewBar, contract2)
+
 
     # Keep connection alive (like your outer while True)
     ib.run()

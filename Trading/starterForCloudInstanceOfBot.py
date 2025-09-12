@@ -19,7 +19,7 @@ def main():
         last2_Weeks_price_data = None
 
         # in the actual bot we want to 
-        last2_Weeks_price_data = pd.read_sql(f'SELECT * FROM crypto_price_data OFFSET {start_time} LIMIT {end_time} ', engine)
+        last2_Weeks_price_data = pd.read_sql(f'SELECT * FROM more_crypto_price_data OFFSET {start_time} LIMIT {end_time} ', engine)
 
         # Loop over all unique pairs
         tickers = last2_Weeks_price_data.columns.tolist()
@@ -45,14 +45,14 @@ def main():
 
             # this will generate the table if it doesn't already exist
             df_row.to_sql(
-                'live_cointegration_results',
+                'more_crypto_live_cointegration_results',
                 con=engine,
                 if_exists='append',
                 index=False
             )
 
             # Read the contents of the table to verify
-            df_check = pd.read_sql('SELECT * FROM live_cointegration_results', con=engine)
+            df_check = pd.read_sql('SELECT * FROM more_crypto_live_cointegration_results', con=engine)
             print(df_check.tail())
 
     # Create connection engine using the private engine_string stored in our config file
