@@ -1,14 +1,12 @@
 import StatArbBot.Trading.pricesStarter
 import StatArbBot.Trading.starterForCloudInstanceOfBot
-import Trading.alpacaStream
 
 def main():
     print("booting up stat arb bot...")
     StatArbBot.Trading.pricesStarter.main()
     StatArbBot.Trading.starterForCloudInstanceOfBot.main()
-    StatArbBot.Trading.alpacaStream.main()
 
 if __name__ == "__main__":
     main()
 
-# this file runs the starts and then the actual bot
+# this file runs just the starters, which we need to do every 2 weeks to test for updated cointegration

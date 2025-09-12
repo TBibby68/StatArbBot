@@ -1,4 +1,5 @@
 from ..config import API_KEY, API_SECRET, BASE_URL, stream_url, engine_string, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
+from ib_insync import *
 import asyncio
 import websockets
 import json
@@ -9,8 +10,12 @@ import StatArbBot.Backtesting.GlobalVariables as GlobalVariables
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
 from collections import deque
+import subprocess
+from datetime import datetime, timedelta
 
 def main():
+
+    last_run_time = datetime.now()
     engine = create_engine(engine_string)
 
     # literally just query the db. 

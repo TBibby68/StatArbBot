@@ -10,17 +10,30 @@ def main():
     api = REST(API_KEY, API_SECRET, base_url=BASE_URL)
 
     # define the initial list of stocks to test
-    initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+    #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+
+    # Most liquid crypto coins (symbols)
+    initial_stock_batch = [
+        "BTC/USD",   # Bitcoin
+        "ETH/USD",   # Ethereum
+        "USDT/USD",  # Tether
+        "USDC/USD",  # USD Coin
+        "SOL/USD",   # Solana
+        "XRP/USD",   # XRP
+        "BNB/USD",   # Binance Coin
+        "ADA/USD",   # Cardano
+        "DOGE/USD",  # Dogecoin
+        "TRX/USD"    # Tron
+    ]
 
     combined = None
 
     for ticker in initial_stock_batch:
-        df = api.get_bars(
-            ticker,
+        df = api.get_crypto_bars(
+            ticker, # crypto pair
             TimeFrame.Minute,
             start=(datetime.today() - relativedelta(months=6)).strftime('%Y-%m-%d'),
-            end=datetime.today().strftime('%Y-%m-%d'),
-            feed="iex"
+            end=datetime.today().strftime('%Y-%m-%d')
         ).df
 
         # Rename the 'close' column to the ticker symbol
