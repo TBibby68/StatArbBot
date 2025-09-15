@@ -43,6 +43,7 @@ def main():
 
     GlobalVariables.last_signal = None # to track the last order 
 
+    # check which pairs we can get data for here: Not: USDT, 
     initial_pair = find_initial_pair(engine)
     stock1_ticker = initial_pair[0].iloc[0]
     stock2_ticker = initial_pair[1].iloc[0]
@@ -89,33 +90,40 @@ def main():
 
         # once both stocks have at least 200 closes, we run the bot
         if len(stock1_prices) == 200 and len(stock2_prices) == 200:
-            # all response messages will be list of dictionaries
-            if isinstance(data, list):
-                for item in data:
-                    if item.get("T") == "b": # an OHLCV bar message: this is the response we need
-                        if item.get("S") == stock1_ticker:
-                            stock1_price = item["c"]  # close price of stock 1 
-                            print(stock1_price)
-                            stock1_prices.append(stock1_price)
-                        elif item.get("S") == stock2_ticker:
-                            stock2_price = item["c"] # close price of stock 2
-                            stock2_prices.append(stock2_price)
-                            print(stock2_price)
+            # Use only the rolling last 200 closes
+            s1 = stock1_prices[-200:]
+            s2 = stock2_prices[-200:]
 
-                        if stock2_price is not None and stock1_price is not None and min(len(stock1_prices), len(stock2_prices)) == 200:
-                            # need to make sure that we have 200 minutes of rolling history 
-                            beta = compute_beta(stock1_prices, stock2_prices)
-                            print(beta)
-                            signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
-                            if signal not in (None, GlobalVariables.last_signal):
-                                print(signal)
-                                value = 10
-                                # need to pull through the current and previous z scores: current is -1 and previous is 0
-                                place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
-                                print("trade placed!")
-                                GlobalVariables.last_signal = signal
-            else:
-                print("Non-bar message:", data)
+            # Compute hedge ratio / beta
+            beta = compute_beta(s1, s2)
+            print(f"Computed beta: {beta}")
+
+            # Current prices are just the most recent closes
+            stock1_price = s1[-1]
+            stock2_price = s2[-1]
+
+            # Generate signal (and update z-scores internally)
+            signal = update_and_get_signal(stock1_price, stock2_price, beta)
+
+            if signal not in (None, GlobalVariables.last_signal):
+                print(f"New signal: {signal}")
+
+                # Example trade size
+                value = 10  
+
+                place_pair_trade(
+                    stock1_ticker,
+                    stock2_ticker,
+                    stock1_price,
+                    stock2_price,
+                    value,
+                    GlobalVariables.z_scores[-1],  # most recent z-score
+                    GlobalVariables.z_scores[0],   # previous z-score
+                    signal
+                )
+
+                print("Trade placed!")
+                GlobalVariables.last_signal = signal
 
     # "Inject" the contract when attaching the event handler
     bars1.updateEvent += lambda bars, hasNewBar: onBarUpdate(bars, hasNewBar, contract1)
