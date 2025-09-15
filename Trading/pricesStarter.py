@@ -12,24 +12,20 @@ def main():
     # define the initial list of stocks to test
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
-    # Top 6 most liquid crypto coins (symbols)
-    # go through these and test to see if it can get data.
-    initial_stock_batch = [
-        "BTC/USD",   # Bitcoin
-        "ETH/USD",   # Ethereum
-        "USDT/USD",  # Tether
-        "BCH/USD",  # BCH Coin
-        "SOL/USD",   # Solana
-        "XRP/USD",   # XRP
-        "LTC/USD",
-        "AAVE/USD",
-        "UNI/USD",
-        "LINK/USD"
+    initial_crypto_batch = [
+        "BTC/USD", # Bitcoin WORKS
+        "ETH/USD", # Ethereum WORKS
+        "BCH/USD", # BCH Coin WORKS
+        "SOL/USD", # Solana WORKS
+        "LTC/USD", # WORKS
+        "AAVE/USD", # WORKS
+        "UNI/USD", # WORKS
+        "LINK/USD" # WORKS
     ]
 
     combined = None
 
-    for ticker in initial_stock_batch:
+    for ticker in initial_crypto_batch:
         df = api.get_crypto_bars(
             ticker, # crypto pair
             TimeFrame.Minute,

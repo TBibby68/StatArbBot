@@ -1,8 +1,5 @@
 from ..config import API_KEY, API_SECRET, BASE_URL, stream_url, engine_string, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
 from ib_insync import *
-import asyncio
-import websockets
-import json
 import numpy as np
 from StatArbBot.Backtesting.signals import update_and_get_signal # to get the trading signals
 from StatArbBot.Trading.trading import place_pair_trade # to actually do the trading
