@@ -93,8 +93,8 @@ def main():
             print(f"Computed beta: {beta}")
 
             # Current prices are just the most recent closes
-            stock1_price = s1[-1]
-            stock2_price = s2[-1]
+            stock1_price = stock1_prices[-1]
+            stock2_price = stock1_prices[-1]
 
             # Generate signal (and update z-scores internally)
             signal = update_and_get_signal(stock1_price, stock2_price, beta)
