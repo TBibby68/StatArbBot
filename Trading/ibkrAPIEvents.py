@@ -10,9 +10,12 @@ from collections import deque
 import subprocess
 from datetime import datetime, timedelta
 
+# to keep track of the last minute we saw: global
+last_minute = { 'stock1': None, 'stock2': None }
+last_run_minute = None
+
 def main():
 
-    last_run_time = datetime.now()
     engine = create_engine(engine_string)
 
     # literally just query the db. 
@@ -49,9 +52,6 @@ def main():
     stock1_prices = deque(maxlen=200)
     stock2_prices = deque(maxlen=200)
 
-    # to keep track of the last minute we saw
-    last_minute = { 'stock1': None, 'stock2': None }
-
     ib = IB()
     ib.connect('127.0.0.1', 4002, clientId=1)
 
@@ -65,6 +65,8 @@ def main():
 
     # this is the main function that runs the bot, this is triggered when we get new prices coming in
     def onBarUpdate(bars, hasNewBar, contract):
+        global last_run_minute
+
         if not hasNewBar:
             return
 
@@ -86,11 +88,13 @@ def main():
                 print(f"[{symbol}] Stored 1-min close {bar.close} at {minute_bucket}")
 
         # once both stocks have at least 200 closes, we run the bot
-        if len(stock1_prices) == 5 and len(stock2_prices) == 5:
+        if (len(stock1_prices) >= 5 and len(stock2_prices) >= 5 and last_run_minute != minute_bucket):
 
             # Compute hedge ratio / beta
             beta = compute_beta(stock1_prices, stock2_prices)
             print(f"Computed beta: {beta}")
+            # making sure this if statement doesn't run mulitple times in the same minute[look into this more]
+            last_run_minute = minute_bucket
 
             # Current prices are just the most recent closes
             stock1_price = stock1_prices[-1]
