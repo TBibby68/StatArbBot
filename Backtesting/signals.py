@@ -37,5 +37,5 @@ def update_and_get_signal(price_a, price_b, beta=1.0):
         GlobalVariables.last_signal = "CLOSE"
         return "CLOSE" #, position_size_factor # this is the signal to close out the swap 
     
-    return None, None
+    return None#, None
     # if neither of these is satisfied then we return nothing 
