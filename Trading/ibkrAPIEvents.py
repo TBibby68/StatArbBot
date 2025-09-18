@@ -86,13 +86,10 @@ def main():
                 print(f"[{symbol}] Stored 1-min close {bar.close} at {minute_bucket}")
 
         # once both stocks have at least 200 closes, we run the bot
-        if len(stock1_prices) == 200 and len(stock2_prices) == 200:
-            # Use only the rolling last 200 closes
-            s1 = stock1_prices[-200:]
-            s2 = stock2_prices[-200:]
+        if len(stock1_prices) == 5 and len(stock2_prices) == 5:
 
             # Compute hedge ratio / beta
-            beta = compute_beta(s1, s2)
+            beta = compute_beta(stock1_prices, stock2_prices)
             print(f"Computed beta: {beta}")
 
             # Current prices are just the most recent closes
