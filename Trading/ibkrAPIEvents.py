@@ -87,8 +87,9 @@ def main():
                 last_minute['stock2'] = minute_bucket
                 print(f"[{symbol}] Stored 1-min close {bar.close} at {minute_bucket}")
 
+        n1, n2 = len(stock1_prices), len(stock2_prices)
         # once both stocks have at least 200 closes, we run the bot
-        if (len(stock1_prices) >= 5 and len(stock2_prices) >= 5 and last_run_minute != minute_bucket):
+        if (n1 >= 200 and n1 == n2 and last_run_minute != minute_bucket):
 
             # Compute hedge ratio / beta
             beta = compute_beta(stock1_prices, stock2_prices)
@@ -98,10 +99,11 @@ def main():
 
             # Current prices are just the most recent closes
             stock1_price = stock1_prices[-1]
-            stock2_price = stock1_prices[-1]
+            stock2_price = stock2_prices[-1]
 
             # Generate signal (and update z-scores internally)
             signal = update_and_get_signal(stock1_price, stock2_price, beta)
+            print(signal)
 
             if signal not in (None, GlobalVariables.last_signal):
                 print(f"New signal: {signal}")
