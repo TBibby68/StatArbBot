@@ -6,7 +6,7 @@ from ib_insync import *
 # Set up Alpaca REST API connection to the paper trading part of the API
 api = tradeapi.REST(API_KEY, API_SECRET, BASE_URL, api_version="v2")
 
-def place_pair_trade(symbol_a, symbol_b, symbol_a_price, symbol_b_price, qty, currentZscore, previousZscore, signal, ib):
+def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
     """
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
     If signal is 'OPEN', opens a long/short position based on z direction.
@@ -25,7 +25,7 @@ def place_pair_trade(symbol_a, symbol_b, symbol_a_price, symbol_b_price, qty, cu
                 side_a = "buy"
                 side_b = "sell"
 
-            print(f"[OPEN] {side_a.upper()} {qty} {symbol_a} | {side_b.upper()} {qty} {symbol_b}")
+            print(f"[OPEN] {side_a.upper()} {cashPrice} {symbol_a} | {side_b.upper()} {cashPrice} {symbol_b}")
 
         elif signal == "CLOSE": # close out the current position
             if previousZscore > 0: # we will always have a previous z score to work with as close will never be before an open
@@ -38,7 +38,7 @@ def place_pair_trade(symbol_a, symbol_b, symbol_a_price, symbol_b_price, qty, cu
                 side_b = "buy"
             
         # Actually place the trades
-        print(f"[CLOSE] BUY {qty} {symbol_a} | SELL {qty} {symbol_b}")
+        print(f"[CLOSE] BUY {cashPrice} {symbol_a} | SELL {cashPrice} {symbol_b}")
 
         contractA = Crypto(symbol_a, 'PAXOS', 'USD')
         contractB = Crypto(symbol_a, 'PAXOS', 'USD')
@@ -46,8 +46,8 @@ def place_pair_trade(symbol_a, symbol_b, symbol_a_price, symbol_b_price, qty, cu
         orderA = MarketOrder(side_a, 0)
         orderB = MarketOrder(side_b, 0)
 
-        orderA.cashQty = qty/symbol_a_price
-        orderB.cashQty = qty/symbol_b_price
+        orderA.cashQty = cashPrice
+        orderB.cashQty = cashPrice
 
         orderA.tif = 'GTC'
         orderB.tif = 'GTC' 

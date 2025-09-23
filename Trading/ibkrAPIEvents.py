@@ -1,4 +1,4 @@
-from ..config import API_KEY, API_SECRET, BASE_URL, stream_url, engine_string, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
+from ..config import engine_string
 from ib_insync import *
 import numpy as np
 from StatArbBot.Backtesting.signals import update_and_get_signal # to get the trading signals
@@ -7,7 +7,6 @@ import StatArbBot.Backtesting.GlobalVariables as GlobalVariables
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
 from collections import deque
-import subprocess
 from datetime import datetime, timedelta
 
 # to keep track of the last minute we saw: global
@@ -119,7 +118,8 @@ def main():
                     value,
                     GlobalVariables.z_scores[-1],  # most recent z-score
                     GlobalVariables.z_scores[0],   # previous z-score
-                    signal
+                    signal,
+                    ib # the IBKR connection
                 )
 
                 print("Trade placed!")
