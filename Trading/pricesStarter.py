@@ -13,14 +13,14 @@ def main():
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
     initial_crypto_batch = [
-        "BTC/USD", # Bitcoin WORKS
-        "ETH/USD", # Ethereum WORKS
-        "BCH/USD", # BCH Coin WORKS
-        "SOL/USD", # Solana WORKS
-        "LTC/USD", # WORKS
-        "AAVE/USD", # WORKS
-        "UNI/USD", # WORKS
-        "LINK/USD" # WORKS
+        "BTC/USD", 
+        "ETH/USD",
+        "BCH/USD",
+        "SOL/USD",
+        "LTC/USD", 
+        "AAVE/USD", 
+        "UNI/USD", 
+        "LINK/USD" 
     ]
 
     combined = None
