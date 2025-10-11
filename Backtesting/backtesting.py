@@ -182,7 +182,7 @@ def simulate_close_trade(stock1_price, stock2_price, current_pair_returns):
     GlobalVariables.stock1_stock = 0
     GlobalVariables.stock2_stock = 0
 
-def simulate_open_trade(stock1_price, stock2_price, hedge_ratio, position_sizing_factor):
+def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
     """Calculates the resulting PnL of opening a position with the current stock prices and hedge ratio.
     
         This function updates several Global Variables that keep track of the current PnL of the bot, and 
@@ -199,12 +199,12 @@ def simulate_open_trade(stock1_price, stock2_price, hedge_ratio, position_sizing
     GlobalVariables.number_of_signals += 1
     if GlobalVariables.z_scores[-1] > 0: # testing the current z score
         # z positive: spread is too high → short A, long B
-        GlobalVariables.stock1_stock -= position_sizing_factor * 10 / stock1_price 
-        GlobalVariables.stock2_stock += position_sizing_factor * hedge_ratio * 10 / stock2_price
+        GlobalVariables.stock1_stock -=  10 / stock1_price 
+        GlobalVariables.stock2_stock += hedge_ratio * 10 / stock2_price
     else:
         # z negative: spread is too low → long A, short B
-        GlobalVariables.stock1_stock += position_sizing_factor * hedge_ratio * 10 / stock1_price 
-        GlobalVariables.stock2_stock -= position_sizing_factor * 10 / stock2_price 
+        GlobalVariables.stock1_stock += hedge_ratio * 10 / stock1_price 
+        GlobalVariables.stock2_stock -= 10 / stock2_price
 
     # keep track of the entry prices
     GlobalVariables.entry_price_stock1 = stock1_price
@@ -375,12 +375,12 @@ while end_time <= 44000:
 
         # in initial backtests it seems like the Kalman filter doesn't improve alpha generation - store it as a module for later
         beta = compute_beta(stock1_prices, stock2_prices)
-        signal, position_sizing_factor = update_and_get_signal(stock1_price, stock2_price, beta)
+        signal = update_and_get_signal(stock1_price, stock2_price, beta)
 
         # simulate the trade based on the signal
         if signal == "OPEN":
             print("Opening a position")
-            simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta, position_sizing_factor = position_sizing_factor)
+            simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
         elif signal == "CLOSE":
             print("closing a posiiton")
             simulate_close_trade(stock1_price, stock2_price, current_pair_returns)

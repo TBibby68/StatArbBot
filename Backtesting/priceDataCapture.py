@@ -3,6 +3,7 @@ from alpaca_trade_api.rest import REST, TimeFrame
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import create_engine
+import numpy as np
 # This file is where we pull the 6 months stock data for big banks and push it to a database: FOR BACKTESTING
 
 # Create the API object: this uses a different API connection than the websocket connection that the stream uses. 
@@ -36,7 +37,9 @@ for ticker in initial_stock_batch:
 # forward fill blank values
 combined.ffill(inplace=True)
 # Then fill backward to catch leading NaNs
-combined.bfill(inplace=True) 
+combined.bfill(inplace=True)
+# convert to log prices for cointegration testing
+combined[ticker] = np.log(combined[ticker])
 
 # add this in so we can connect it to the 2 backtesting tables
 combined['minute'] = range(len(combined))
