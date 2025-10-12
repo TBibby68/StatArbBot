@@ -101,10 +101,15 @@ def main():
             stock2_price = stock2_prices[-1]
 
             # Generate signal (and update z-scores internally)
-            signal = update_and_get_signal(stock1_price, stock2_price, beta)
+            signal = update_and_get_signal(stock1_price, stock2_price, beta, False)
             print(signal)
 
+            if signal == "OPEN" or signal == "CLOSE":
+                print("we should trade now")
+
             if signal not in (None, GlobalVariables.last_signal):
+                # this needs to be updated AFTER we validate this condition
+                GlobalVariables.last_signal = signal
                 print(f"New signal: {signal}")
 
                 # Example trade size

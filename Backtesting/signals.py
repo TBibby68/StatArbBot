@@ -15,7 +15,7 @@ def compute_zscore(spread_series, window=30):
     rolling_std = spread_series.rolling(window=window).std()
     return (spread_series - rolling_mean) / rolling_std
 
-def update_and_get_signal(price_a, price_b, beta=1.0):
+def update_and_get_signal(price_a, price_b, beta=1.0, isRunFromBacktest=True):
     spread = compute_spread(price_a, price_b, beta)
     spread_history.append(spread) # add the spread to the rolling last 100 values 
 
@@ -30,11 +30,13 @@ def update_and_get_signal(price_a, price_b, beta=1.0):
     if abs(z) > 1.5 and GlobalVariables.last_signal != "OPEN":
         # the further we get away from the threshold the riskier the signal is so we hedge by reducing the position size
         #position_size_factor = 1 / (abs(z) - 1.5)
-        GlobalVariables.last_signal = "OPEN"
+        if isRunFromBacktest:
+            GlobalVariables.last_signal = "OPEN"
         return "OPEN" #, position_size_factor # this is the signal to buy into the swap
     elif abs(z) < 0.5 and GlobalVariables.last_signal == "OPEN": # can't start with a close!
         #position_size_factor = 1
-        GlobalVariables.last_signal = "CLOSE"
+        if isRunFromBacktest:
+            GlobalVariables.last_signal = "CLOSE"
         return "CLOSE" #, position_size_factor # this is the signal to close out the swap 
     
     return None#, None
