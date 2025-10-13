@@ -6,6 +6,7 @@ from ib_insync import *
 # Set up Alpaca REST API connection to the paper trading part of the API
 api = tradeapi.REST(API_KEY, API_SECRET, BASE_URL, api_version="v2")
 
+# NEED TO FIX THIS
 def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
     """
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
