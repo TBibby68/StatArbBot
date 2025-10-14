@@ -1,10 +1,5 @@
-import alpaca_trade_api as tradeapi
-from StatArbBot.config import API_KEY, API_SECRET, BASE_URL
 from ib_insync import *
-# this is the file that handles the trade input to the alpaca API 
-
-# Set up Alpaca REST API connection to the paper trading part of the API
-api = tradeapi.REST(API_KEY, API_SECRET, BASE_URL, api_version="v2")
+# this is the file that handles the trade input to IBKR
 
 # NEED TO FIX THIS
 def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
@@ -19,30 +14,30 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
         if signal == "OPEN":
             if currentZscore > 0:
                 # z positive: spread is too high → short A, long B
-                side_a = "sell" # sell symbol_a
-                side_b = "buy" # buy symbol_b
+                side_a = "SELL" # sell symbol_a
+                side_b = "BUY" # buy symbol_b
             else:
                 # z negative: spread is too low → long A, short B
-                side_a = "buy"
-                side_b = "sell"
+                side_a = "BUY"
+                side_b = "SELL"
 
             print(f"[OPEN] {side_a.upper()} {cashPrice} {symbol_a} | {side_b.upper()} {cashPrice} {symbol_b}")
 
         elif signal == "CLOSE": # close out the current position
             if previousZscore > 0: # we will always have a previous z score to work with as close will never be before an open
                 # z positive: spread is too high → short A, long B
-                side_a = "buy"
-                side_b = "sell"
+                side_a = "BUY"
+                side_b = "SELL"
             else:
                 # z negative: spread is too low → long A, short B
-                side_a = "sell"
-                side_b = "buy"
+                side_a = "SELL"
+                side_b = "BUY"
             
         # Actually place the trades
         print(f"[CLOSE] BUY {cashPrice} {symbol_a} | SELL {cashPrice} {symbol_b}")
 
         contractA = Crypto(symbol_a, 'PAXOS', 'USD')
-        contractB = Crypto(symbol_a, 'PAXOS', 'USD')
+        contractB = Crypto(symbol_b, 'PAXOS', 'USD')
 
         orderA = MarketOrder(side_a, 0)
         orderB = MarketOrder(side_b, 0)
