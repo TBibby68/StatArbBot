@@ -123,6 +123,8 @@ def main():
                 place_pair_trade(
                     stock1_ticker,
                     stock2_ticker,
+                    stock1_price,
+                    stock2_price,
                     value,
                     GlobalVariables.z_scores[-1],  # most recent z-score
                     GlobalVariables.z_scores[0],   # previous z-score

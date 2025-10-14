@@ -1,11 +1,16 @@
 from ib_insync import *
 import threading, time, traceback, sys
+from decimal import Decimal
 # this is the file that handles the trade input to IBKR
+
+def round_lot(qty, lot=Decimal("0.000001")):
+    # floor to the allowed increment (example: 6 dp)
+    return (Decimal(qty) // lot) * lot
 
 def ts(): return time.strftime("%H:%M:%S")
 
 # NEED TO FIX THIS
-def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
+def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZscore, previousZscore, signal, ib):
     """
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
     If signal is 'OPEN', opens a long/short position based on z direction.
@@ -54,8 +59,15 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
         contractA = Crypto(symbol_a, 'PAXOS', 'USD')
         contractB = Crypto(symbol_b, 'PAXOS', 'USD')
 
-        orderA = MarketOrder(side_a, 0)
-        orderB = MarketOrder(side_b, 0)
+        # need to specify units for crypto
+        raw_qty_a = cashPrice / a_price
+        qty_a = float(round_lot(raw_qty_a, Decimal("0.000001")))  # 6 dp
+
+        raw_qty_b = cashPrice / b_price
+        qty_b = float(round_lot(raw_qty_b, Decimal("0.000001")))  # 6 dp
+
+        orderA = MarketOrder(side_a, qty_a)
+        orderB = MarketOrder(side_b, qty_b)
 
         orderA.cashQty = cashPrice
         orderB.cashQty = cashPrice
