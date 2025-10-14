@@ -1,5 +1,8 @@
 from ib_insync import *
+import threading, time, traceback, sys
 # this is the file that handles the trade input to IBKR
+
+def ts(): return time.strftime("%H:%M:%S")
 
 # NEED TO FIX THIS
 def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
@@ -9,6 +12,18 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
     If signal is 'CLOSE', closes both positions by placing opposing orders.
     it is important to note that qty is the units, not the absolute amount!
     """
+    print("[ENTER place_pair_trade]", flush=True)
+
+    # debugging to checkl the threading situation
+    try:
+        msg = f"[{ts()}][{threading.current_thread().name}] ENTER place_pair_trade sig={signal}"
+        print(msg, flush=True)
+    except Exception as e:
+        print("[LOG FORMAT ERROR]", repr(e), flush=True)
+        traceback.print_exc(file=sys.stdout)
+    assert signal in ("OPEN","CLOSE")
+    assert cashPrice is not None
+
 
     try:
         if signal == "OPEN":
@@ -48,9 +63,11 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
         orderA.tif = 'GTC'
         orderB.tif = 'GTC' 
 
-        # Place order
+        # Place order with debugging statements 
+        print(f"[{ts()}] Pre-IB placeOrder", flush=True)
         ib.placeOrder(contractA, orderA)
         ib.placeOrder(contractB, orderB)
+        print(f"[{ts()}] Post-IB placeOrder", flush=True)
 
     except Exception as e:
         print(f"[ERROR] Failed to place pair trade: {e}")

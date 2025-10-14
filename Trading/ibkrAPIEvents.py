@@ -8,6 +8,9 @@ from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
 from collections import deque
 from datetime import datetime, timedelta
+import threading, time, traceback
+
+def ts(): return time.strftime("%H:%M:%S")
 
 # to keep track of the last minute we saw: global
 last_minute = { 'stock1': None, 'stock2': None }
@@ -71,6 +74,8 @@ def main():
 
         bar = bars[-1]
         minute_bucket = bar.time.replace(second=0, microsecond=0)
+        # for debugging purposes so we can see which thread we are on
+        print(f"[{ts()}][{threading.current_thread().name}] ENTER onBarUpdate", flush=True)
 
         # Decide which stock this is
         symbol = getattr(contract, 'symbol', 'Unknown')
@@ -88,7 +93,7 @@ def main():
 
         n1, n2 = len(stock1_prices), len(stock2_prices)
         # once both stocks have at least 200 closes, we run the bot
-        if (n1 >= 200 and n1 == n2 and last_run_minute != minute_bucket):
+        if (n1 >= 2 and n1 == n2 and last_run_minute != minute_bucket):
 
             # Compute hedge ratio / beta
             beta = compute_beta(stock1_prices, stock2_prices)
@@ -118,8 +123,6 @@ def main():
                 place_pair_trade(
                     stock1_ticker,
                     stock2_ticker,
-                    stock1_price,
-                    stock2_price,
                     value,
                     GlobalVariables.z_scores[-1],  # most recent z-score
                     GlobalVariables.z_scores[0],   # previous z-score
