@@ -57,7 +57,9 @@ def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZsc
         print(f"[CLOSE] BUY {cashPrice} {symbol_a} | SELL {cashPrice} {symbol_b}")
 
         contractA = Crypto(symbol_a, 'PAXOS', 'USD')
+        print(ib.qualifyContracts(contractA)[0])
         contractB = Crypto(symbol_b, 'PAXOS', 'USD')
+        print(ib.qualifyContracts(contractB)[0])
 
         # need to specify units for crypto
         raw_qty_a = cashPrice / a_price
@@ -66,8 +68,8 @@ def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZsc
         raw_qty_b = cashPrice / b_price
         qty_b = float(round_lot(raw_qty_b, Decimal("0.000001")))  # 6 dp
 
-        orderA = MarketOrder(side_a, qty_a)
-        orderB = MarketOrder(side_b, qty_b)
+        orderA = MarketOrder(side_a, qty_a, transmit=True)
+        orderB = MarketOrder(side_b, qty_b, transmit=True)
 
         orderA.cashQty = cashPrice
         orderB.cashQty = cashPrice
@@ -77,9 +79,30 @@ def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZsc
 
         # Place order with debugging statements 
         print(f"[{ts()}] Pre-IB placeOrder", flush=True)
-        ib.placeOrder(contractA, orderA)
-        ib.placeOrder(contractB, orderB)
+        trade = ib.placeOrder(contractA, orderA)
+        order = ib.placeOrder(contractB, orderB)
+        print(trade.orderStatus.status)
+        print(order.orderStatus.status)
+        print(trade.log)
         print(f"[{ts()}] Post-IB placeOrder", flush=True)
 
     except Exception as e:
         print(f"[ERROR] Failed to place pair trade: {e}")
+
+# testing:
+ib = IB()
+ib.connect('127.0.0.1', 4002, clientId=1)
+# check it is connected
+print(ib.isConnected())
+
+place_pair_trade(
+    "BTC",
+    "ETH",
+    100000,
+    10000,
+    10,
+    2.5,  # most recent z-score
+    0.4,   # previous z-score
+    "OPEN",
+    ib # the IBKR connection
+)

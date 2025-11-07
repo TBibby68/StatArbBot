@@ -93,7 +93,7 @@ def main():
 
         n1, n2 = len(stock1_prices), len(stock2_prices)
         # once both stocks have at least 200 closes, we run the bot
-        if (n1 >= 2 and n1 == n2 and last_run_minute != minute_bucket):
+        if (n1 >= 200 and n1 == n2 and last_run_minute != minute_bucket):
 
             # Compute hedge ratio / beta
             beta = compute_beta(stock1_prices, stock2_prices)

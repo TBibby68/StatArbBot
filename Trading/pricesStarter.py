@@ -12,15 +12,16 @@ def main():
     # define the initial list of stocks to test
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
+    # for crypto you need to not include the /USD at the end, or orders won't work!
     initial_crypto_batch = [
-        "BTC/USD", 
-        "ETH/USD",
-        "BCH/USD",
-        "SOL/USD",
-        "LTC/USD", 
-        "AAVE/USD", 
-        "UNI/USD", 
-        "LINK/USD" 
+        "BTC", 
+        "ETH",
+        "BCH",
+        "SOL",
+        "LTC", 
+        "AAVE", 
+        "UNI", 
+        "LINK" 
     ]
 
     combined = None
