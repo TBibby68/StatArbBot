@@ -10,7 +10,7 @@ def round_lot(qty, lot=Decimal("0.000001")):
 def ts(): return time.strftime("%H:%M:%S")
 
 # NEED TO FIX THIS
-def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZscore, previousZscore, signal, ib):
+def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
     """
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
     If signal is 'OPEN', opens a long/short position based on z direction.
@@ -56,36 +56,26 @@ def place_pair_trade(symbol_a, symbol_b, a_price, b_price, cashPrice, currentZsc
         # Actually place the trades
         print(f"[CLOSE] BUY {cashPrice} {symbol_a} | SELL {cashPrice} {symbol_b}")
 
-        contractA = Crypto(symbol_a, 'PAXOS', 'USD')
-        print(ib.qualifyContracts(contractA)[0])
-        contractB = Crypto(symbol_b, 'PAXOS', 'USD')
-        print(ib.qualifyContracts(contractB)[0])
+        # Group the orders so that if one fails, they both fail, 
+        # and make sure they both go through at the same time. 
 
-        # need to specify units for crypto
-        raw_qty_a = cashPrice / a_price
-        qty_a = float(round_lot(raw_qty_a, Decimal("0.000001")))  # 6 dp
+        # have to go through the whole order "lifecycle" for each leg: first leg A
+        contractA = Stock(symbol_a, 'SMART', 'USD')
+        contractA = ib.qualifyContracts(contractA)[0]
+        orderA = MarketOrder(side_a, 10)
+        tradeA = ib.placeOrder(contractA, orderA)
 
-        raw_qty_b = cashPrice / b_price
-        qty_b = float(round_lot(raw_qty_b, Decimal("0.000001")))  # 6 dp
+        # then leg B
+        contractB = Stock(symbol_b, 'SMART', 'USD')
+        contractB = ib.qualifyContracts(contractB)[0]
+        orderB = MarketOrder(side_b, 10)
+        tradeB = ib.placeOrder(contractB, orderB)
 
-        orderA = MarketOrder(side_a, qty_a, transmit=True)
-        orderB = MarketOrder(side_b, qty_b, transmit=True)
-
-        orderA.cashQty = cashPrice
-        orderB.cashQty = cashPrice
-
-        orderA.tif = 'GTC'
-        orderB.tif = 'GTC' 
-
-        # Place order with debugging statements 
-        print(f"[{ts()}] Pre-IB placeOrder", flush=True)
-        trade = ib.placeOrder(contractA, orderA)
-        order = ib.placeOrder(contractB, orderB)
-        print(trade.orderStatus.status)
-        print(order.orderStatus.status)
-        print(trade.log)
-        print(f"[{ts()}] Post-IB placeOrder", flush=True)
-
+        print("orderA id: ", orderA.orderId, "orderB id: ", orderB.orderId)
+        
+        print("aapl log: ", tradeA.log)
+        print("msft log: ", tradeB.log)
+        print(ib.positions())
     except Exception as e:
         print(f"[ERROR] Failed to place pair trade: {e}")
 
@@ -96,10 +86,18 @@ ib.connect('127.0.0.1', 4002, clientId=1)
 print(ib.isConnected())
 
 place_pair_trade(
-    "BTC",
-    "ETH",
-    100000,
-    10000,
+    "AAPL",
+    "MSFT",
+    10,
+    2.5,  # most recent z-score
+    0.4,   # previous z-score
+    "OPEN",
+    ib # the IBKR connection
+)
+
+place_pair_trade(
+    "AAPL",
+    "MSFT",
     10,
     2.5,  # most recent z-score
     0.4,   # previous z-score
