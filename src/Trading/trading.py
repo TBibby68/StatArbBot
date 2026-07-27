@@ -43,6 +43,9 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
 
         elif signal == "CLOSE": # close out the current position
 
+            # first we need to update the results list
+            GlobalVariables.experimentResults.append({
+
             if previousZscore > 0: # we will always have a previous z score to work with as close will never be before an open
                 # z positive: spread is too high → short A, long B
                 side_a = "BUY"

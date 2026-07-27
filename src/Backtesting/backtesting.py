@@ -380,10 +380,9 @@ while end_time <= 44000:
         # simulate the trade based on the signal
         if signal == "OPEN":
             print("Opening a position")
-
             simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
         elif signal == "CLOSE":
-            print("closing a position")
+            print("closing a posiiton")
             simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
 
     trade_returns_series = pd.Series(current_pair_returns)
