@@ -13,7 +13,7 @@ def main():
     #initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
     # for crypto you need to not include the /USD at the end, or orders won't work!
-    initial_crypto_batch = [
+    tickers = [
         "BTC", 
         "ETH",
         "BCH",
@@ -26,7 +26,7 @@ def main():
 
     combined = None
 
-    for ticker in initial_crypto_batch:
+    for ticker in tickers:
         df = api.get_crypto_bars(
             ticker, # crypto pair
             TimeFrame.Minute,

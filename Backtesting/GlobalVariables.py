@@ -16,3 +16,5 @@ entry_price_stock2 = 0
 ran_initial_kalman_filter = False
 
 trade_returns = []
+
+experiment_1_results = []

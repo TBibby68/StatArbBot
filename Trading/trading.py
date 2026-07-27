@@ -9,7 +9,6 @@ def round_lot(qty, lot=Decimal("0.000001")):
 
 def ts(): return time.strftime("%H:%M:%S")
 
-# NEED TO FIX THIS
 def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscore, signal, ib):
     """
     Places a pair trade between symbol_a and symbol_b based on z-score and signal.
@@ -29,7 +28,6 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
     assert signal in ("OPEN","CLOSE")
     assert cashPrice is not None
 
-
     try:
         if signal == "OPEN":
             if currentZscore > 0:
@@ -44,6 +42,10 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
             print(f"[OPEN] {side_a.upper()} {cashPrice} {symbol_a} | {side_b.upper()} {cashPrice} {symbol_b}")
 
         elif signal == "CLOSE": # close out the current position
+
+            # first we need to update the results list
+            GlobalVariables.experimentResults.append({
+
             if previousZscore > 0: # we will always have a previous z score to work with as close will never be before an open
                 # z positive: spread is too high → short A, long B
                 side_a = "BUY"
@@ -63,44 +65,12 @@ def place_pair_trade(symbol_a, symbol_b, cashPrice, currentZscore, previousZscor
         contractA = Stock(symbol_a, 'SMART', 'USD')
         contractA = ib.qualifyContracts(contractA)[0]
         orderA = MarketOrder(side_a, 10)
-        tradeA = ib.placeOrder(contractA, orderA)
+        ib.placeOrder(contractA, orderA)
 
         # then leg B
         contractB = Stock(symbol_b, 'SMART', 'USD')
         contractB = ib.qualifyContracts(contractB)[0]
         orderB = MarketOrder(side_b, 10)
-        tradeB = ib.placeOrder(contractB, orderB)
-
-        print("orderA id: ", orderA.orderId, "orderB id: ", orderB.orderId)
-        
-        print("aapl log: ", tradeA.log)
-        print("msft log: ", tradeB.log)
-        print(ib.positions())
+        ib.placeOrder(contractB, orderB)
     except Exception as e:
         print(f"[ERROR] Failed to place pair trade: {e}")
-
-# testing:
-ib = IB()
-ib.connect('127.0.0.1', 4002, clientId=1)
-# check it is connected
-print(ib.isConnected())
-
-place_pair_trade(
-    "AAPL",
-    "MSFT",
-    10,
-    2.5,  # most recent z-score
-    0.4,   # previous z-score
-    "OPEN",
-    ib # the IBKR connection
-)
-
-place_pair_trade(
-    "AAPL",
-    "MSFT",
-    10,
-    2.5,  # most recent z-score
-    0.4,   # previous z-score
-    "OPEN",
-    ib # the IBKR connection
-)

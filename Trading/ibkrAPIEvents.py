@@ -20,7 +20,7 @@ def main():
 
     engine = create_engine(engine_string)
 
-    # literally just query the db. 
+    # literally just query the db: Here we are querying fake data because live data cost money.
     def find_initial_pair(engine):
         df = pd.read_sql("""SELECT * FROM more_crypto_live_cointegration_results WHERE p_value < 0.05 AND stock1 != 'minute' AND stock2 != 'minute' ORDER BY p_value LIMIT 1""", con=engine)
         pair = []
@@ -41,7 +41,7 @@ def main():
     # perform the trades and calculate when the spread has widened enough to enter a position
 
     global stock1_price  # so we can update it
-    global stock2_price
+    global stock2_price 
 
     GlobalVariables.last_signal = None # to track the last order 
 
