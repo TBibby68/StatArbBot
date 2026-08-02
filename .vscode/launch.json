@@ -2,12 +2,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run current script as module",
+      "name": "Run current Python file",
       "type": "debugpy",
       "request": "launch",
-      "module": "StatArbBot.src.Backtesting.priceDataCapture",
+      "program": "${file}",
       "console": "integratedTerminal",
-      "cwd": "C:/Users/tbibb"
+      "cwd": "C:/Users/tbibb",
+      "env": {
+        "PYTHONPATH": "C:/Users/tbibb"
+      }
     }
   ]
 }
