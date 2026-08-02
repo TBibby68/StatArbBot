@@ -4,6 +4,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import create_engine
 import numpy as np
+import pandas as pd
 # This file is where we pull the 6 months stock data for big banks and push it to a database: FOR BACKTESTING
 
 # Create the API object: this uses a different API connection than the websocket connection that the stream uses. 
@@ -14,17 +15,21 @@ initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC"
 
 combined = None
 
+start_date = "2022-08-01"
+end_date = "2025-08-01"
+
 for ticker in initial_stock_batch:
-    df = api.get_bars(
+
+    bars = api.get_bars(
         ticker,
         TimeFrame.Minute,
-        start=(datetime.today() - relativedelta(months=6)).strftime('%Y-%m-%d'),
-        end=datetime.today().strftime('%Y-%m-%d'),
+        start=start_date,
+        end=end_date,
         feed="iex"
     ).df
 
     # Rename the 'close' column to the ticker symbol
-    df = df[["close"]].rename(columns={"close": ticker})
+    df = bars[["close"]].rename(columns={"close": ticker})
 
     # Join it into the combined DataFrame
     if combined is None:
@@ -39,7 +44,7 @@ combined.ffill(inplace=True)
 # Then fill backward to catch leading NaNs
 combined.bfill(inplace=True)
 # convert to log prices for cointegration testing
-combined[ticker] = np.log(combined[ticker])
+combined = np.log(combined)
 
 # add this in so we can connect it to the 2 backtesting tables
 combined['minute'] = range(len(combined))

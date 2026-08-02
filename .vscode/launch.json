@@ -5,7 +5,7 @@
       "name": "Run current script as module",
       "type": "debugpy",
       "request": "launch",
-      "module": "StatArbBot.${relativeFileDirname}.${fileBasenameNoExtension}",
+      "module": "StatArbBot.src.Backtesting.priceDataCapture",
       "console": "integratedTerminal",
       "cwd": "C:/Users/tbibb"
     }
