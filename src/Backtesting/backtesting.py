@@ -338,61 +338,75 @@ current_pair_returns = []
 
 # SECTION 3: LOPPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
 
-# here, the index 44k is roughly 2 weeks before the end of the data, meaning that we stop once we don't have the next 2 weeks of data to backtest on. 
-# NOTE: we test 
-while end_time <= 44000:
+# TODO: Make this function actually take data in and not do it itself, that way we can call it in the walkforward analysis file. 
+def run_backtest(
+    data,
+    config
+):
+    """
+    Run the strategy only on the supplied data.
 
-    # first get the current window we are in
-    # if theres no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
-    # then parse the results into strings, 
-    # and then finally query the backtesting database for the past 3 months and next 2 weeks of data for this pair.
-    window_id = get_window_id(end_time)
-    # it needs to be the previous window's result, as at this point that's all the information we have.
-    best_pair = Calculate_Cointegrated_Pair(window_id - 1, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
-    current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
-    stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
+    This function must not load later data or inspect observations
+    beyond the supplied DataFrame.
+    """
 
-    # initalise this list so we can keep track of returns per-pair
-    current_pair_returns = []
+    # here, the index 44k is roughly 2 weeks before the end of the data, meaning that we stop once we don't have the next 2 weeks of data to backtest on. 
+    # NOTE: we test 
+    while end_time <= 44000:
 
-    # simulate the trading on the 2 weeks
-    for _,row in stocks_df.iloc[24000:].iterrows():
-        # pull the prices "currently" and then pull the series from "3 months ago" to "2 weeks ahead":
-        stock1_price = row[stock1]
-        stock2_price = row[stock2]
-        current_minute = int(row["minute"])
-        start_minute = current_minute - 24000
-        mask = (stocks_df["minute"] >= start_minute) & (stocks_df["minute"] < current_minute)
-        stock1_prices = stocks_df.loc[mask, stock1]
-        stock2_prices = stocks_df.loc[mask, stock2]
+        # first get the current window we are in
+        # if theres no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
+        # then parse the results into strings, 
+        # and then finally query the backtesting database for the past 3 months and next 2 weeks of data for this pair.
+        window_id = get_window_id(end_time)
+        # it needs to be the previous window's result, as at this point that's all the information we have.
+        best_pair = Calculate_Cointegrated_Pair(window_id - 1, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
+        current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
+        stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
 
-        # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
-        # if GlobalVariables.ran_initial_kalman_filter is False:
-        #     beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
-        #     GlobalVariables.ran_initial_kalman_filter = True
-        # else:
-        #     beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
+        # initalise this list so we can keep track of returns per-pair
+        current_pair_returns = []
 
-        # in initial backtests it seems like the Kalman filter doesn't improve alpha generation - store it as a module for later
-        beta = compute_beta(stock1_prices, stock2_prices)
-        signal = update_and_get_signal(stock1_price, stock2_price, beta)
+        # simulate the trading on the 2 weeks
+        for _,row in stocks_df.iloc[24000:].iterrows():
+            # pull the prices "currently" and then pull the series from "3 months ago" to "2 weeks ahead":
+            stock1_price = row[stock1]
+            stock2_price = row[stock2]
+            current_minute = int(row["minute"])
+            start_minute = current_minute - 24000
+            mask = (stocks_df["minute"] >= start_minute) & (stocks_df["minute"] < current_minute)
+            stock1_prices = stocks_df.loc[mask, stock1]
+            stock2_prices = stocks_df.loc[mask, stock2]
 
-        # simulate the trade based on the signal
-        if signal == "OPEN":
-            print("Opening a position")
-            simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
-        elif signal == "CLOSE":
-            print("closing a posiiton")
-            simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
+            # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
+            # if GlobalVariables.ran_initial_kalman_filter is False:
+            #     beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
+            #     GlobalVariables.ran_initial_kalman_filter = True
+            # else:
+            #     beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
 
-    trade_returns_series = pd.Series(current_pair_returns)
-    current_sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
-    print("this is the basic estimator of the sharpe ratio for the strategy: " + str(current_sharpe_ratio))
+            # in initial backtests it seems like the Kalman filter doesn't improve alpha generation - store it as a module for later
+            beta = compute_beta(stock1_prices, stock2_prices)
+            signal = update_and_get_signal(stock1_price, stock2_price, beta)
 
-    # roll the time forward by 2 weeks: roughly 3900 trading minutes
-    end_time += 3900
+            # simulate the trade based on the signal
+            if signal == "OPEN":
+                print("Opening a position")
+                simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
+            elif signal == "CLOSE":
+                print("closing a posiiton")
+                simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
+
+        trade_returns_series = pd.Series(current_pair_returns)
+        current_sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
+        print("this is the basic estimator of the sharpe ratio for the strategy: " + str(current_sharpe_ratio))
+
+        # roll the time forward by 2 weeks: roughly 3900 trading minutes
+        end_time += 3900
 
 # SECTION 4: LOGGING PERFORMANCE METRICS OF THE BOT:
+
+run_backtest()
 
 trade_returns_series = pd.Series(GlobalVariables.trade_returns)
 sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()

@@ -7,6 +7,8 @@ from StatArbBot.config import engine_string
 from concurrent.futures import ProcessPoolExecutor
 from itertools import combinations
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import time
 ##############
 # Parallelisation:
 
@@ -17,10 +19,17 @@ def analyse_window(args):
     window_id, window = args
     results = []
 
+    print(f"Starting window {window_id}", flush=True)
+
     if window.empty:
         raise ValueError(f"Window {window_id} is empty")
 
     for stock_1, stock_2 in combinations(window.columns, 2):
+        print(
+            f"Window {window_id}: {stock_1}/{stock_2}",
+            flush=True
+        )
+
         test_stat, p_value, _ = coint(
             window[stock_1].to_numpy(),
             window[stock_2].to_numpy()
@@ -33,6 +42,8 @@ def analyse_window(args):
             "p_value": p_value,
             "test_stat": test_stat
         })
+
+        print(f"Finished window {window_id}", flush=True)
 
     return results
 
@@ -67,8 +78,25 @@ def main():
     for window_id, window in window_inputs:
         print(f"SUBMITTING window={window_id}, shape={window.shape}")
 
-    with ProcessPoolExecutor(max_workers=max(1, os.cpu_count() - 1)) as executor:
-        nested_results = list(executor.map(analyse_window, window_inputs))
+    with ProcessPoolExecutor(max_workers=4) as executor:
+
+        futures = {
+            executor.submit(analyse_window, args): args[0]
+            for args in window_inputs
+        }
+
+        nested_results = []
+
+        for future in as_completed(futures):
+            window_id = futures[future]
+
+            try:
+                result = future.result(timeout=600)
+                nested_results.append(result)
+                print(f"Completed window {window_id}")
+            except Exception as exc:
+                print(f"Window {window_id} failed: {exc}")
+                raise
 
     results = [
         result
