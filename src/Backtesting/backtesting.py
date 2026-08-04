@@ -203,7 +203,9 @@ def find_new_pair_and_close_current_position(window_id, engine, stock1_price, st
 
     # find the new pair to trade on and print information to terminal
     best_pair = CointegrationBacktestQuery(window_id, engine)
-    print("the value of the previous pair was too high, this is the new current p_value: ", str(best_pair["p_value"][0]))
+    
+    if best_pair is not None:
+        print("the value of the previous pair was too high, this is the new current p_value: ", str(best_pair["p_value"][0]))
 
     # simulate the trade, reset the last_signal and return the pair
     if GlobalVariables.last_signal != "CLOSE":
@@ -312,6 +314,14 @@ def run_backtest(
 
         # it needs to be the previous window's result, as at this point that's all the information we have.
         best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
+
+        # this window has no cointegrated pair, so we will move to the next window and try again.
+        if best_pair is None:
+            print("no cointegrated pair found for this window, moving to the next window")
+            window_id += 1
+            window_end_time += trading_time
+            continue
+
         current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
 
         # slice the data frame. NOTE: as it stands now the cointegration is only calculated at 3 month windows, so changing the coint_window parameter will make the backtest completely nonsensical until this has been fixed.
