@@ -14,6 +14,9 @@ import time
 
 # this needs to be defined outside the main function so the parallelisation can work properly. If this was inside the main function then each interpreter would look in the file and fail to find the analyse_window function, and crash
 
+# TODO: Make this function quicker so it can run in <1hr
+# TODO: Make this function take a configurable cointegration window
+
 # test cointegration on a single window
 def analyse_window(args):
     window_id, window = args

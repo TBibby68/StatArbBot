@@ -1,11 +1,12 @@
 import numpy as np
-from StatArbBot.Backtesting.signals import update_and_get_signal
-from StatArbBot.Backtesting import GlobalVariables
+from signals import update_and_get_signal
+import GlobalVariables
 import pandas as pd
-from StatArbBot.Backtesting.EGinPythonBACKTEST import CointegrationBacktestQuery
+from EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import importlib.metadata
+import backtestConfig
 try:
     from pykalman import KalmanFilter
 except importlib.metadata.PackageNotFoundError:
@@ -107,32 +108,6 @@ def compute_beta(stock1_prices, stock2_prices):
     cov_matrix = np.cov(stock1_prices, stock2_prices)
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]
     return beta
-
-def get_window_id(time):
-    """Retrieve the window_id corresponding to a specific time from our SQL table.
-       
-        Args: 
-            time (int): The "time" in our backtesting engine (number of minutes from starting time).
-
-        Returns:
-            int: the window_id that corresponds to the given time in the cointegration_results table.
-    """
-
-    query = '''
-    SELECT window_id
-    FROM cointegration_results
-    WHERE end_time = %s
-    LIMIT 1
-    '''
-    params = (time,)
-    window_id_array = pd.read_sql(query, con=engine, params=params)
-
-    if not window_id_array.empty:
-        window_id = int(window_id_array.iloc[0, 0])
-    else:
-        window_id = None 
-
-    return window_id
 
 def simulate_close_trade(stock1_price, stock2_price, current_pair_returns):
     """Calculates the resulting PnL of closing a position with the current stock prices.
@@ -262,6 +237,7 @@ def UpdateCurrentStockPair(best_pair):
     print("this is the current pair we will trade on:", current_stock_pair)
     return current_stock_pair, stock1, stock2
 
+# NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
 def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns):
     """Query the database for the cointegration score of the current pair, and if there is no current pair, then find one.
 
@@ -297,95 +273,73 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
 
     return best_pair
 
-def Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2):
-    """Query the database for the prices of the currently traded stocks for the "next" 2 weeks(trading time),
-        and the "last" 3 months(for hedge ratio calculation).
-
-        Args: 
-            stock1 (string): the symbol of our first stock.
-            stock2 (string): the symbol of our second stock.
-
-        Returns:
-            DataFrame: the dataframe containing the prices of both stocks for the afformentioned timeframe.
-    """
-
-    # define the query
-    columns = f'"{stock1}", "{stock2}", minute'
-    query = f'''
-    SELECT {columns}
-    FROM backtesting_data
-    WHERE minute > %s AND minute <= %s
-    ''' 
-
-    # run the query
-    params = (end_time - 24000, end_time + 3900)
-    stocks_df = pd.read_sql_query(query, con=engine, params=params)
-    stocks_df["minute"] = stocks_df["minute"].astype(int)
-
-    return stocks_df
-
-# SECTION 2: INITIALISING VARIABLES AND CONNECTING TO THE DATABASE:
-
-# The end_time corresponds to 24000 minutes after the starting time which is ~3 months. 
-# stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
-current_stock_pair = ["", ""]
-engine = create_engine(engine_string)
-end_time = 27900
-GlobalVariables.last_signal = "CLOSE" 
-stock1_price = 45230
-stock2_price = 235
-current_pair_returns = []
-
-# SECTION 3: LOPPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
+# SECTION 3: LOOPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
 
 # TODO: Make this function actually take data in and not do it itself, that way we can call it in the walkforward analysis file. 
+
 def run_backtest(
-    data,
-    config
+    data : pd.DataFrame,
+    config : backtestConfig.BacktestConfig
 ):
     """
     Run the strategy only on the supplied data.
 
-    This function must not load later data or inspect observations
-    beyond the supplied DataFrame.
     """
 
-    # here, the index 44k is roughly 2 weeks before the end of the data, meaning that we stop once we don't have the next 2 weeks of data to backtest on. 
-    # NOTE: we test 
-    while end_time <= 44000:
+    GlobalVariables.last_signal = "CLOSE" 
 
-        # first get the current window we are in
-        # if theres no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
+    # stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
+    stock1_price = 45230
+    stock2_price = 235
+    current_pair_returns = []
+
+    # this is the end date of the first trading period, (eg 3 months coint test + 2 weeks trading)
+    trading_time = config.trading_window_size
+    coint_window = config.cointegration_window_size
+    window_end_time = coint_window + trading_time
+    current_stock_pair = ["", ""]
+    
+    # TODO: make this calculated based on a proper calendar, not just an approx value
+    final_trading_period = 3900
+    window_id = 0
+
+    # need to ensure we still time to trade, so every period is the same. 
+    while window_end_time < len(data) - final_trading_period:
+
+        # if there's no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
         # then parse the results into strings, 
-        # and then finally query the backtesting database for the past 3 months and next 2 weeks of data for this pair.
-        window_id = get_window_id(end_time)
+        # and then finally query the backtesting database for the full coint time + trading time of data for this pair.
+
         # it needs to be the previous window's result, as at this point that's all the information we have.
-        best_pair = Calculate_Cointegrated_Pair(window_id - 1, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
+        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
         current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
-        stocks_df = Pull_Last_3_Months_And_Next_2_Weeks(stock1, stock2)
+
+        # slice the data frame. NOTE: as it stands now the cointegration is only calculated at 3 month windows, so changing the coint_window parameter will make the backtest completely nonsensical until this has been fixed.
+        stocks_df = data.loc[
+            data["minute"].between(
+                window_end_time - coint_window,
+                window_end_time + trading_time,
+                inclusive="right",
+            ),
+            [stock1, stock2, "minute"],
+        ].copy()
 
         # initalise this list so we can keep track of returns per-pair
         current_pair_returns = []
 
-        # simulate the trading on the 2 weeks
-        for _,row in stocks_df.iloc[24000:].iterrows():
-            # pull the prices "currently" and then pull the series from "3 months ago" to "2 weeks ahead":
+        # simulate the trading on the period
+        for _,row in stocks_df.iloc[trading_time:].iterrows():
+            # pull the prices "currently" and then pull the series from "coint_window ago" to "trading_time ahead":
             stock1_price = row[stock1]
             stock2_price = row[stock2]
             current_minute = int(row["minute"])
-            start_minute = current_minute - 24000
+            start_minute = current_minute - trading_time
             mask = (stocks_df["minute"] >= start_minute) & (stocks_df["minute"] < current_minute)
             stock1_prices = stocks_df.loc[mask, stock1]
             stock2_prices = stocks_df.loc[mask, stock2]
 
-            # calculate the hedge ratio and then the signal based on this: only calculate the full beta series for the initial window. 
-            # if GlobalVariables.ran_initial_kalman_filter is False:
-            #     beta, covariance, kf = compute_beta_kalman_initial(stock1_prices,stock2_prices)
-            #     GlobalVariables.ran_initial_kalman_filter = True
-            # else:
-            #     beta, covariance = update_kalman_beta(beta, covariance, stock1_price, stock2_price, kf)
-
-            # in initial backtests it seems like the Kalman filter doesn't improve alpha generation - store it as a module for later
+            # compute hedge ratio
+            # TODO: add in introspection here so we can have another class to hold all the methods and call cleanly here
             beta = compute_beta(stock1_prices, stock2_prices)
             signal = update_and_get_signal(stock1_price, stock2_price, beta)
 
@@ -394,19 +348,28 @@ def run_backtest(
                 print("Opening a position")
                 simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
             elif signal == "CLOSE":
-                print("closing a posiiton")
+                print("closing a position")
                 simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
+
+        # move to the next trading window
+        window_id += 1
 
         trade_returns_series = pd.Series(current_pair_returns)
         current_sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
         print("this is the basic estimator of the sharpe ratio for the strategy: " + str(current_sharpe_ratio))
 
-        # roll the time forward by 2 weeks: roughly 3900 trading minutes
-        end_time += 3900
+        # roll the time forward by the trading time:
+        window_end_time += trading_time
 
 # SECTION 4: LOGGING PERFORMANCE METRICS OF THE BOT:
 
-run_backtest()
+# run the backtest on the postgres data
+engine = create_engine(engine_string)
+data = pd.read_sql('SELECT * FROM backtesting_data', con=engine)
+
+backtest_config = backtestConfig.BacktestConfig()
+
+run_backtest(data, backtest_config) # TODO: this function should return the figures we want to measure for the experiments.
 
 trade_returns_series = pd.Series(GlobalVariables.trade_returns)
 sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()

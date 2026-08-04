@@ -11,7 +11,7 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
         query = '''
         SELECT stock1, stock2, p_value 
         FROM cointegration_results 
-        WHERE window_id = %s AND p_value < 0.1
+        WHERE window_id = %s AND p_value < 0.05
         AND stock1 = %s AND stock2 = %s
         '''
         params1 = (current_window_id, current_stock_pair[0], current_stock_pair[1])
@@ -20,7 +20,7 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
         query = '''
         SELECT stock1, stock2, p_value
         FROM cointegration_results
-        WHERE window_id = %s AND p_value < 0.1
+        WHERE window_id = %s AND p_value < 0.05
         ORDER BY p_value ASC
         LIMIT 1
         '''
@@ -34,7 +34,3 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
     # return the result: if the current stock pair is still cointegrated, then we get it, and if we find a new one, we return it. 
     # if we can't find a cointegrated pair then we return None
     return cointegration_result
-
-# on preliminary test, the big banks in this list seem to have much stronger cointegration relationships than apple and microsoft, 
-# with BAC/C giving a p score of 0.006478 in one test, whereas on the same day, AAPL/MSFT gave 0.96, which is a big difference!
-# we will nwow see if making this change results in better returns 
