@@ -54,7 +54,8 @@ def main():
     # Create connection engine using the private engine_string stored in our config file
     engine = create_engine(engine_string)
 
-    backtesting_data = pd.read_sql(f'SELECT * FROM backtesting_data', engine)
+    # ignore the minute column:
+    backtesting_data = pd.read_sql(f'SELECT * FROM backtesting_data', engine).drop(columns=["minute"])
     total_mins = len(backtesting_data)
 
     number_of_windows = 1 + (
