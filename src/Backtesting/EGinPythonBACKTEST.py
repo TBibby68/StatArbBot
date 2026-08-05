@@ -13,6 +13,8 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
         FROM cointegration_results 
         WHERE window_id = %s AND p_value < 0.05
         AND stock1 = %s AND stock2 = %s
+        AND stock1 <> 'minute'
+        AND stock2 <> 'minute'
         '''
         params1 = (current_window_id, current_stock_pair[0], current_stock_pair[1])
         cointegration_result = pd.read_sql(query, con=engine,params=params1)
@@ -21,6 +23,8 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
         SELECT stock1, stock2, p_value
         FROM cointegration_results
         WHERE window_id = %s AND p_value < 0.05
+        AND stock1 <> 'minute'
+        AND stock2 <> 'minute'
         ORDER BY p_value ASC
         LIMIT 1
         '''

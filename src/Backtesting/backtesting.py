@@ -381,6 +381,8 @@ backtest_config = backtestConfig.BacktestConfig()
 
 run_backtest(data, backtest_config) # TODO: this function should return the figures we want to measure for the experiments.
 
+# TODO: need to make sure that this function stores all the necassery results in a dataframe or something, and then smash the experiment out!
+
 trade_returns_series = pd.Series(GlobalVariables.trade_returns)
 sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
 print("Overall this is the current PnL of the past 6 months: " + str(GlobalVariables.cash))
