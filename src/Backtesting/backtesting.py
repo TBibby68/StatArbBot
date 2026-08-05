@@ -109,7 +109,7 @@ def compute_beta(stock1_prices, stock2_prices):
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]
     return beta
 
-def simulate_close_trade(stock1_price, stock2_price, current_pair_returns):
+def simulate_close_trade(stock1_price, stock2_price, current_pair_returns, completed_trades):
     """Calculates the resulting PnL of closing a position with the current stock prices.
 
         Args: 
@@ -157,7 +157,7 @@ def simulate_close_trade(stock1_price, stock2_price, current_pair_returns):
     GlobalVariables.stock1_stock = 0
     GlobalVariables.stock2_stock = 0
 
-def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
+def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, current_minute):
     """Calculates the resulting PnL of opening a position with the current stock prices and hedge ratio.
     
         This function updates several Global Variables that keep track of the current PnL of the bot, and 
@@ -172,11 +172,13 @@ def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
             None.
     """
     GlobalVariables.number_of_signals += 1
+    direction = "SHORT"
     if GlobalVariables.z_scores[-1] > 0: # testing the current z score
         # z positive: spread is too high → short A, long B
         GlobalVariables.stock1_stock -=  10 / stock1_price 
         GlobalVariables.stock2_stock += hedge_ratio * 10 / stock2_price
     else:
+        direction = "LONG"
         # z negative: spread is too low → long A, short B
         GlobalVariables.stock1_stock += hedge_ratio * 10 / stock1_price 
         GlobalVariables.stock2_stock -= 10 / stock2_price
@@ -185,7 +187,10 @@ def simulate_open_trade(stock1_price, stock2_price, hedge_ratio):
     GlobalVariables.entry_price_stock1 = stock1_price
     GlobalVariables.entry_price_stock2 = stock2_price
 
-def find_new_pair_and_close_current_position(window_id, engine, stock1_price, stock2_price, current_pair_returns):
+    # make an open trade object, which we will then add to when we close the trade. add in the direction (short or long the spread) 
+    trade_entry = (window_id, stock1_price, stock2_price, hedge_ratio, direction, current_minute, stock1_price, stock2_price, GlobalVariables.z_scores[0], GlobalVariables.z_scores[-1], GlobalVariables.stock1_stock, GlobalVariables.stock2_stock)
+
+def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_pair_returns, completed_trades):
     """Finds a new pair of stocks that is cointegrated and then closes out the current position of stocks that are
        no longer cointegrated.
 
@@ -240,7 +245,7 @@ def UpdateCurrentStockPair(best_pair):
     return current_stock_pair, stock1, stock2
 
 # NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
-def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns):
+def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns, completed_trades):
     """Query the database for the cointegration score of the current pair, and if there is no current pair, then find one.
 
         This function is similar to find_new_pair_and_close_current_position(), but with the difference 1 key difference: it 
@@ -267,9 +272,9 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
         # if we have a current pair, test if the relationship still exists
         best_pair = CointegrationBacktestQuery(window_id, engine, current_stock_pair)
         
-        # close current position if the relationship break down, and find a new pair to trad eon
+        # close current position if the relationship break down, and find a new pair to trade on
         if best_pair is None:
-            best_pair = find_new_pair_and_close_current_position(window_id, engine, stock1_price, stock2_price, current_pair_returns)
+            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_pair_returns, completed_trades)
         else:
             print("this is the current p_value: ", str(best_pair["p_value"][0]))
 
@@ -277,8 +282,7 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
 
 # SECTION 3: LOOPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
 
-# TODO: Make this function actually take data in and not do it itself, that way we can call it in the walkforward analysis file. 
-
+# TODO: Make this function not do any analysis, just return a df of the trades completed
 def run_backtest(
     data : pd.DataFrame,
     config : backtestConfig.BacktestConfig
@@ -305,6 +309,8 @@ def run_backtest(
     final_trading_period = 3900
     window_id = 0
 
+    completed_trades: list[dict] = []
+
     # need to ensure we still time to trade, so every period is the same. 
     while window_end_time < len(data) - final_trading_period:
 
@@ -313,7 +319,7 @@ def run_backtest(
         # and then finally query the backtesting database for the full coint time + trading time of data for this pair.
 
         # it needs to be the previous window's result, as at this point that's all the information we have.
-        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns)
+        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns, completed_trades)
 
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if best_pair is None:
@@ -356,10 +362,10 @@ def run_backtest(
             # simulate the trade based on the signal
             if signal == "OPEN":
                 print("Opening a position")
-                simulate_open_trade(stock1_price, stock2_price, hedge_ratio=beta)
+                simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute)
             elif signal == "CLOSE":
                 print("closing a position")
-                simulate_close_trade(stock1_price, stock2_price, current_pair_returns)
+                simulate_close_trade(stock1_price, stock2_price, current_pair_returns, completed_trades, current_minute=current_minute)
 
         # move to the next trading window
         window_id += 1

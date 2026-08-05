@@ -24,7 +24,7 @@ def update_and_get_signal(price_a, price_b, beta=1.0, isRunFromBacktest=True):
 
     zscore_series = pd.Series(spread_history)
     z = compute_zscore(zscore_series).iloc[-1]
-    GlobalVariables.z_scores.append(z) # add the score to the queue
+    GlobalVariables.z_scores.append(z) # add the score to the queue [dequeue so will always be correct]
 
     # Example signal logic: definitely needs some work: it's currently just entering and has no exit logic essentially
     if abs(z) > 1.5 and GlobalVariables.last_signal != "OPEN":
