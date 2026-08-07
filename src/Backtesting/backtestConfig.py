@@ -1,5 +1,6 @@
 
 from enum import StrEnum
+from dataclasses import dataclass
 
 # potential methods to explore for calculating the hedge ratio. 
 class HedgeRatioMethod(StrEnum):
@@ -11,29 +12,40 @@ class HedgeRatioMethod(StrEnum):
     TOTAL_LEAST_SQUARES = "total_least_squares"
     ROBUST = "robust_regression"
 
-# populate these when we opne and then close a trade and do analysis on the resulting df.
+class TradeCloseMethod(StrEnum):
+    SIGNAL = "signal"
+    FORCED = "forced"
+
+@dataclass
 class TradeEntry:
     window_id: int
     stock1: str
     stock2: str
-    direction: str
     entry_timestamp: int
-    exit_timestamp: int
     entry_price_1: float
     entry_price_2: float
-    exit_price_1: float
-    exit_price_2: float
     entry_zscore: float
-    exit_zscore: float
     hedge_ratio_entry: float
-    hedge_ratio_exit: float
     position_size_1: float
     position_size_2: float
+    direction: str
+
+@dataclass
+class CompletedTrade:
+    OpenLeg: TradeEntry
+
+    holding_minutes: int
     exit_reason: str
+
+    exit_timestamp: int
+    exit_price_1: float
+    exit_price_2: float
+    exit_zscore: float
+    
     gross_pnl: float
     transaction_costs: float
     net_pnl: float
-    holding_minutes: int
+
 
 class BacktestConfig:
     # parameters we may want to change for different experiments/fine tuning:
