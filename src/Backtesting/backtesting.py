@@ -109,7 +109,7 @@ def compute_beta(stock1_prices, stock2_prices):
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]
     return beta
 
-def simulate_close_trade(stock1_price, stock2_price, current_pair_returns, current_minute, closed_trades, open_trade, is_force_closure):
+def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trades, open_trade, is_force_closure):
     """Calculates the resulting PnL of closing a position with the current stock prices.
 
         Args: 
@@ -145,7 +145,6 @@ def simulate_close_trade(stock1_price, stock2_price, current_pair_returns, curre
     pnl_total = pnl_stock1 + pnl_stock2
     GlobalVariables.cash += pnl_total
     GlobalVariables.trade_returns.append(pnl_total)
-    current_pair_returns.append(pnl_total)
 
     # update the max profit / max drawdown from a single trade
     if pnl_total >= GlobalVariables.max_profit:
@@ -229,7 +228,7 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
 
     return open_trade
 
-def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_pair_returns, current_minute, open_trade, completed_trades):
+def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute, open_trade, completed_trades):
     """Finds a new pair of stocks that is cointegrated and then closes out the current position of stocks that are
        no longer cointegrated.
 
@@ -253,7 +252,7 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
 
     # simulate the trade, reset the last_signal and return the pair
     if GlobalVariables.last_signal != "CLOSE":
-        simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_pair_returns=current_pair_returns, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True)
+        simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True)
         GlobalVariables.last_signal = "CLOSE"
     # reset the kalman filter flag for the next pair
     GlobalVariables.ran_initial_kalman_filter = False
@@ -284,7 +283,7 @@ def UpdateCurrentStockPair(best_pair):
     return current_stock_pair, stock1, stock2
 
 # NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
-def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns, current_minute, open_trade, completed_trades):
+def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_minute, open_trade, completed_trades):
     """Query the database for the cointegration score of the current pair, and if there is no current pair, then find one.
 
         This function is similar to find_new_pair_and_close_current_position(), but with the difference 1 key difference: it 
@@ -296,7 +295,6 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
             engine (variable): the connection to the SQL database.
             stock1_price (float): the price of our first stock.
             stock2_price (float): the price of our second stock.
-            current_pair_returns (series): The history of the PnL of this pair of stocks up to this point.
 
         Returns:
             DataFrame: the dataframe containing the new pair we wll trade on, and the p_value for the 
@@ -313,7 +311,7 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
         
         # close current position if the relationship break down, and find a new pair to trade on
         if best_pair is None:
-            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_pair_returns, current_minute=current_minute, open_trade=open_trade, completed_trades=completed_trades)
+            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute=current_minute, open_trade=open_trade, completed_trades=completed_trades)
         else:
             print("this is the current p_value: ", str(best_pair["p_value"][0]))
 
@@ -321,7 +319,6 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
 
 # SECTION 3: LOOPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
 
-# TODO: Make this function not do any analysis, just return a df of the trades completed
 def run_backtest(
     data : pd.DataFrame,
     config : backtestConfig.BacktestConfig
@@ -338,7 +335,6 @@ def run_backtest(
     # stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
     stock1_price = 45230
     stock2_price = 235
-    current_pair_returns = []
 
     # this is the end date of the first trading period, (eg 3 months coint test + 2 weeks trading)
     trading_time = config.trading_window_size
@@ -358,11 +354,12 @@ def run_backtest(
         # and then finally query the backtesting database for the full coint time + trading time of data for this pair.
 
         # it needs to be the previous window's result, as at this point that's all the information we have.
-        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_pair_returns,0, current_open_trade, completed_trades=completed_trades)
+        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, 0, current_open_trade, completed_trades=completed_trades)
 
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if best_pair is None:
             print("no cointegrated pair found for this window, moving to the next window")
+
             window_id += 1
             window_end_time += trading_time
             continue
@@ -378,9 +375,6 @@ def run_backtest(
             ),
             [stock1, stock2, "minute"],
         ].copy()
-
-        # initalise this list so we can keep track of returns per-pair
-        current_pair_returns = []
 
         # simulate the trading on the period
         for _,row in stocks_df.iloc[trading_time:].iterrows():
@@ -404,55 +398,25 @@ def run_backtest(
                 current_open_trade = simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute, stock1=stock1, stock2=stock2)
             elif signal == "CLOSE":
                 print("closing a position")
-                simulate_close_trade(stock1_price, stock2_price, current_pair_returns, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False)
+                simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False)
 
-        # move to the next trading window
+        # increment the window and time
         window_id += 1
-
-        trade_returns_series = pd.Series(current_pair_returns)
-        current_sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
-        print("this is the basic estimator of the sharpe ratio for the strategy: " + str(current_sharpe_ratio))
-
-        # roll the time forward by the trading time:
         window_end_time += trading_time
     
-    return completed_trades
+        trades_df = pd.DataFrame(completed_trades)
 
-def analyse_results(trades):
-
-    forced_trades = trades[
-        trades["exit_reason"] == backtestConfig.TradeCloseMethod.FORCED
-    ]
-
-    signal_trades = trades[
-        trades["exit_reason"] != backtestConfig.TradeCloseMethod.FORCED
-    ]
-
-    forced_PnL_mean = forced_trades["net_pnl"].mean()
-    forced_PnL_sum = forced_trades["net_pnl"].sum()
-
-    PnL_mean = signal_trades["net_pnl"].mean()
-    PnL_sum = signal_trades["net_pnl"].sum()
-
-    print(f"forced PnL mean: {forced_PnL_mean}, forced PnL sum: {forced_PnL_sum}, PnL mean: {PnL_mean}, PnL sum: {PnL_sum}")
-
-# SECTION 4: LOGGING PERFORMANCE METRICS OF THE BOT:
+        trades_df.to_sql(
+            "completed_trades",
+            con=engine,
+            if_exists="append",
+            index=False,
+        )
 
 # run the backtest on the postgres data
 engine = create_engine(engine_string)
-data = pd.read_sql('SELECT * FROM backtesting_data', con=engine)
 
+data = pd.read_sql('SELECT * FROM backtesting_data', con=engine)
 backtest_config = backtestConfig.BacktestConfig()
 
-trades = run_backtest(data, backtest_config)
-analyse_results(trades)
-
-# TODO: need to make sure that this function stores all the necassery results in a dataframe or something, and then smash the experiment out!
-
-trade_returns_series = pd.Series(GlobalVariables.trade_returns)
-sharpe_ratio = trade_returns_series.mean() / trade_returns_series.std()
-print("Overall this is the current PnL of the past 6 months: " + str(GlobalVariables.cash))
-print("this is the basic estimator of the sharpe ratio for the strategy: " + str(sharpe_ratio))
-print("this is the most lost on a single trade: " + str(GlobalVariables.max_drawdown))
-print("this is the most made on a single trade: " + str(GlobalVariables.max_profit))
-print("the number of signals in this period is: " + str(GlobalVariables.number_of_signals))
+run_backtest(data, backtest_config)
