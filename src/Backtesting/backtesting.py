@@ -217,7 +217,7 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
 
     return open_trade
 
-def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute, open_trade, completed_trades):
+def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute, open_trade, completed_trades, current_window_stocks_df, current_pair):
     """Finds a new pair of stocks that is cointegrated and then closes out the current position of stocks that are
        no longer cointegrated.
 
@@ -241,7 +241,19 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
 
     # simulate the trade, reset the last_signal and return the pair
     if GlobalVariables.last_signal != "CLOSE":
-        simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True)
+        # need to find the current zscore. need to put all of this in its own function:
+        stock1 = current_pair[0]
+        stock2 = current_pair[1]
+
+        start_minute = current_minute - backtestConfig.BacktestConfig.trading_window_size
+        mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
+        stock1_prices = current_window_stocks_df.loc[mask, stock1]
+        stock2_prices = current_window_stocks_df.loc[mask, stock2]
+
+        beta = compute_beta(stock1_prices, stock2_prices)
+        _, zscore = update_and_get_signal(stock1_price, stock2_price, beta)
+
+        simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True, zscore=zscore)
         GlobalVariables.last_signal = "CLOSE"
     # reset the kalman filter flag for the next pair
     GlobalVariables.ran_initial_kalman_filter = False
@@ -272,7 +284,7 @@ def UpdateCurrentStockPair(best_pair):
     return current_stock_pair, stock1, stock2
 
 # NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
-def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_minute, open_trade, completed_trades):
+def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_minute, open_trade, completed_trades, current_window_stocks_df):
     """Query the database for the cointegration score of the current pair, and if there is no current pair, then find one.
 
         This function is similar to find_new_pair_and_close_current_position(), but with the difference 1 key difference: it 
@@ -300,7 +312,7 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
         
         # close current position if the relationship break down, and find a new pair to trade on
         if best_pair is None:
-            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute=current_minute, open_trade=open_trade, completed_trades=completed_trades)
+            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute=current_minute, open_trade=open_trade, completed_trades=completed_trades, current_window_stocks_df=current_window_stocks_df, current_pair=current_stock_pair)
         else:
             print("this is the current p_value: ", str(best_pair["p_value"][0]))
 
@@ -334,6 +346,8 @@ def run_backtest(
     # TODO: make this calculated based on a proper calendar, not just an approx value
     final_trading_period = 3900
     window_id = 0
+    # intialise for persistence
+    current_window_stocks_df = pd.DataFrame
 
     # need to ensure we still time to trade, so every period is the same. 
     while window_end_time < len(data) - final_trading_period:
@@ -343,7 +357,7 @@ def run_backtest(
         # and then finally query the backtesting database for the full coint time + trading time of data for this pair.
 
         # it needs to be the previous window's result, as at this point that's all the information we have.
-        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, 0, current_open_trade, completed_trades=completed_trades)
+        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, 0, current_open_trade, completed_trades=completed_trades, current_window_stocks_df=current_window_stocks_df)
 
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if best_pair is None:
@@ -356,7 +370,7 @@ def run_backtest(
         current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
 
         # slice the data frame. NOTE: as it stands now the cointegration is only calculated at 3 month windows, so changing the coint_window parameter will make the backtest completely nonsensical until this has been fixed.
-        stocks_df = data.loc[
+        current_window_stocks_df = data.loc[
             data["minute"].between(
                 window_end_time - coint_window,
                 window_end_time + trading_time,
@@ -366,15 +380,15 @@ def run_backtest(
         ].copy()
 
         # simulate the trading on the period
-        for _,row in stocks_df.iloc[trading_time:].iterrows():
+        for _,row in current_window_stocks_df.iloc[trading_time:].iterrows():
             # pull the prices "currently" and then pull the series from "coint_window ago" to "trading_time ahead":
             stock1_price = row[stock1]
             stock2_price = row[stock2]
             current_minute = int(row["minute"])
             start_minute = current_minute - trading_time
-            mask = (stocks_df["minute"] >= start_minute) & (stocks_df["minute"] < current_minute)
-            stock1_prices = stocks_df.loc[mask, stock1]
-            stock2_prices = stocks_df.loc[mask, stock2]
+            mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
+            stock1_prices = current_window_stocks_df.loc[mask, stock1]
+            stock2_prices = current_window_stocks_df.loc[mask, stock2]
 
             # compute hedge ratio
             # TODO: add in introspection here so we can have another class to hold all the methods and call cleanly here
@@ -385,6 +399,8 @@ def run_backtest(
             if signal == "OPEN":
                 print("Opening a position")
                 current_open_trade = simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute, stock1=stock1, stock2=stock2, zscore=zscore)
+                # save the zscore in a global variable:
+                GlobalVariables.last_open_zscore = zscore
             elif signal == "CLOSE":
                 print("closing a position")
                 simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False, zscore=zscore)
