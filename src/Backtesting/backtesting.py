@@ -412,7 +412,7 @@ def run_backtest(
     trades_df.to_sql(
         "completed_trades",
         con=engine,
-        if_exists="append",
+        if_exists="replace",
         index=False,
     )
 
