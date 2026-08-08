@@ -109,7 +109,7 @@ def compute_beta(stock1_prices, stock2_prices):
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]
     return beta
 
-def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trades, open_trade, is_force_closure):
+def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trades, open_trade, is_force_closure, zscore):
     """Calculates the resulting PnL of closing a position with the current stock prices.
 
         Args: 
@@ -121,28 +121,16 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
     """
     GlobalVariables.number_of_signals += 1
 
-    if GlobalVariables.z_scores[0] > 0: # previous z score
-        # z positive: spread is too high → short A, long B
-        stock1_trade = "buy"
-        stock2_trade = "sell"
-    else:
-        # z negative: spread is too low → long A, short B
-        stock1_trade = "sell"
-        stock2_trade = "buy"
-    
-    # calculate the PnL for each stock separately
-    if stock1_trade == "buy": 
-        pnl_stock1 = (GlobalVariables.entry_price_stock1 - stock1_price) * abs(GlobalVariables.stock1_stock)
-    else:  
-        pnl_stock1 = (stock1_price - GlobalVariables.entry_price_stock1) * abs(GlobalVariables.stock1_stock)
+    pnl_stock1 = (
+        stock1_price - open_trade.entry_price_1
+    ) * open_trade.position_size_1
 
-    if stock2_trade == "sell": 
-        pnl_stock2 = (stock2_price - GlobalVariables.entry_price_stock2) * abs(GlobalVariables.stock2_stock)
-    else:  
-        pnl_stock2 = (GlobalVariables.entry_price_stock2 - stock2_price) * abs(GlobalVariables.stock2_stock)
+    pnl_stock2 = (
+        stock2_price - open_trade.entry_price_2
+    ) * open_trade.position_size_2
 
-    # update the total PnL and add it to the series of PnLs
     pnl_total = pnl_stock1 + pnl_stock2
+
     GlobalVariables.cash += pnl_total
     GlobalVariables.trade_returns.append(pnl_total)
 
@@ -165,13 +153,13 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
             exit_reason = backtestConfig.TradeCloseMethod.FORCED if is_force_closure else backtestConfig.TradeCloseMethod.SIGNAL,
             exit_price_1 = stock1_price,
             exit_price_2 = stock2_price,
-            exit_zscore = GlobalVariables.z_scores[0],
+            exit_zscore = zscore,
             gross_pnl = pnl_total,
             transaction_costs = 0, # hardcode as 0 for now, will model later
             net_pnl = pnl_total
             ))
 
-def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, current_minute, stock1, stock2):
+def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, current_minute, stock1, stock2, zscore):
     """Calculates the resulting PnL of opening a position with the current stock prices and hedge ratio.
     
         This function updates several Global Variables that keep track of the current PnL of the bot, and 
@@ -185,17 +173,18 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
         Returns:
             None.
     """
+    # note: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
     GlobalVariables.number_of_signals += 1
     direction = "SHORT"
-    if GlobalVariables.z_scores[-1] > 0: # testing the current z score
+    if zscore > 0:
         # z positive: spread is too high → short A, long B
         GlobalVariables.stock1_stock -=  10 / stock1_price 
         GlobalVariables.stock2_stock += hedge_ratio * 10 / stock2_price
     else:
         direction = "LONG"
         # z negative: spread is too low → long A, short B
-        GlobalVariables.stock1_stock += hedge_ratio * 10 / stock1_price 
-        GlobalVariables.stock2_stock -= 10 / stock2_price
+        GlobalVariables.stock1_stock += 10 / stock1_price
+        GlobalVariables.stock2_stock -= hedge_ratio * 10 / stock2_price 
 
     # keep track of the entry prices
     GlobalVariables.entry_price_stock1 = stock1_price
@@ -209,7 +198,7 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
         entry_timestamp = current_minute, 
         entry_price_1 = stock1_price, 
         entry_price_2 = stock2_price, 
-        entry_zscore = GlobalVariables.z_scores[-1], 
+        entry_zscore = zscore, 
         hedge_ratio_entry = hedge_ratio, 
         position_size_1 = GlobalVariables.stock1_stock, 
         position_size_2 = GlobalVariables.stock2_stock,
@@ -390,15 +379,15 @@ def run_backtest(
             # compute hedge ratio
             # TODO: add in introspection here so we can have another class to hold all the methods and call cleanly here
             beta = compute_beta(stock1_prices, stock2_prices)
-            signal = update_and_get_signal(stock1_price, stock2_price, beta)
+            signal, zscore = update_and_get_signal(stock1_price, stock2_price, beta)
 
             # simulate the trade based on the signal
             if signal == "OPEN":
                 print("Opening a position")
-                current_open_trade = simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute, stock1=stock1, stock2=stock2)
+                current_open_trade = simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute, stock1=stock1, stock2=stock2, zscore=zscore)
             elif signal == "CLOSE":
                 print("closing a position")
-                simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False)
+                simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False, zscore=zscore)
 
         # increment the window and time
         window_id += 1

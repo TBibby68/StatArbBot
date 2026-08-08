@@ -405,3 +405,4 @@ KDB_init.py
 runningQfromPython.py
 yfinance API call.py
 db_config.ini
+src/Backtesting/script.py
