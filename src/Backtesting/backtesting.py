@@ -404,14 +404,17 @@ def run_backtest(
         window_id += 1
         window_end_time += trading_time
     
-        trades_df = pd.DataFrame(completed_trades)
+    # push to postgres
+    rows = [trade.to_dict() for trade in completed_trades]
 
-        trades_df.to_sql(
-            "completed_trades",
-            con=engine,
-            if_exists="append",
-            index=False,
-        )
+    trades_df = pd.DataFrame(rows)
+
+    trades_df.to_sql(
+        "completed_trades",
+        con=engine,
+        if_exists="append",
+        index=False,
+    )
 
 # run the backtest on the postgres data
 engine = create_engine(engine_string)

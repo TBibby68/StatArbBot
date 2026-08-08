@@ -1,6 +1,7 @@
 
 from enum import StrEnum
 from dataclasses import dataclass
+from dataclasses import asdict
 
 # potential methods to explore for calculating the hedge ratio. 
 class HedgeRatioMethod(StrEnum):
@@ -45,6 +46,21 @@ class CompletedTrade:
     gross_pnl: float
     transaction_costs: float
     net_pnl: float
+
+    # so we can easily inject to sql without nesting errors
+    def to_dict(self):
+        return {
+            **asdict(self.OpenLeg),
+            "holding_minutes": self.holding_minutes,
+            "exit_reason": self.exit_reason,
+            "exit_timestamp": self.exit_timestamp,
+            "exit_price_1": self.exit_price_1,
+            "exit_price_2": self.exit_price_2,
+            "exit_zscore": self.exit_zscore,
+            "gross_pnl": self.gross_pnl,
+            "transaction_costs": self.transaction_costs,
+            "net_pnl": self.net_pnl,
+        }
 
 
 class BacktestConfig:
