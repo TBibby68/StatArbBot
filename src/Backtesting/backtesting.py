@@ -151,6 +151,8 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
             open_trade=open_trade, 
             is_force_closure=True, 
             zscore=zscore)
+        
+        open_trade = None
 
     # return the current best pair AND the current open trade if there is one
     return best_pair, open_trade
@@ -340,6 +342,7 @@ def run_backtest(
                 )    
 
                 print("closing a position")
+
                 simulate_close_trade(
                     stock1_price, 
                     stock2_price, 
@@ -348,7 +351,7 @@ def run_backtest(
                     open_trade=current_open_trade, 
                     is_force_closure=False, 
                     zscore=zscore)
-
+                
                 current_open_trade = None
 
         # increment the window and time
