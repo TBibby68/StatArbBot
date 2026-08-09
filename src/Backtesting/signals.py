@@ -1,5 +1,6 @@
 from collections import deque
 import pandas as pd
+import backtestConfig as config
 
 # this is the file that contain functions that generate the signal to trade
 
@@ -27,9 +28,9 @@ def update_and_get_signal(price_a, price_b, open_trade, beta=1.0):
     z = compute_zscore(zscore_series).iloc[-1]
 
     # threshold logic: TODO: make this configurable for the experiments
-    if abs(z) > 1.5 and open_trade is None:
+    if abs(z) > config.BacktestConfig.entry_threshold and open_trade is None:
         return "OPEN", z
-    elif abs(z) < 0.5 and open_trade is not None:
+    elif abs(z) < config.BacktestConfig.entry_threshold and open_trade is not None:
         return "CLOSE", z 
     
     # if neither of these is satisfied then we return nothing 

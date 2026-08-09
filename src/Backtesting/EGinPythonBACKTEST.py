@@ -1,4 +1,5 @@
 import pandas as pd
+import backtestConfig as config
 # this is the file that queries which stocks are cointegrated from the backtesting data that we have stored locally in postgres
 
 # this takes the current window id, sql engine, and the current stock pair as inputs and either returns None if the current pair is 
@@ -11,24 +12,24 @@ def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = N
         query = '''
         SELECT stock1, stock2, p_value 
         FROM cointegration_results 
-        WHERE window_id = %s AND p_value < 0.05
+        WHERE window_id = %s AND p_value < %s
         AND stock1 = %s AND stock2 = %s
         AND stock1 <> 'minute'
         AND stock2 <> 'minute'
         '''
-        params1 = (current_window_id, current_stock_pair[0], current_stock_pair[1])
+        params1 = (current_window_id, config.BacktestConfig.eg_sig_level, current_stock_pair[0], current_stock_pair[1])
         cointegration_result = pd.read_sql(query, con=engine,params=params1)
     else:
         query = '''
         SELECT stock1, stock2, p_value
         FROM cointegration_results
-        WHERE window_id = %s AND p_value < 0.05
+        WHERE window_id = %s AND p_value < %s
         AND stock1 <> 'minute'
         AND stock2 <> 'minute'
         ORDER BY p_value ASC
         LIMIT 1
         '''
-        params2 = (current_window_id,)
+        params2 = (current_window_id, config.BacktestConfig.eg_sig_level)
         # this will contain the pair that is cointegrated from the 10 if there are any (for this specific time block in the database)
         cointegration_result = pd.read_sql(query, con=engine, params=params2)
 

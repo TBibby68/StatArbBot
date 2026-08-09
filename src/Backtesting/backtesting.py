@@ -24,7 +24,14 @@ def compute_hedge_ratio(stock1_prices, stock2_prices):
 
     return ratio
 
-def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trades, open_trade, is_force_closure, zscore):
+def simulate_close_trade(
+        stock1_price, 
+        stock2_price, 
+        current_minute, 
+        closed_trades, 
+        open_trade, 
+        is_force_closure, 
+        zscore: float | None): # this will be None for forced closures as they are so rare
     """Calculates the resulting PnL of closing a position with the current stock prices.
 
         Args: 
@@ -35,6 +42,7 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
             None.
     """
 
+    # calculate the gross PnL for each stock
     pnl_stock1 = (
         stock1_price - open_trade.entry_price_1
     ) * open_trade.position_size_1
@@ -44,6 +52,21 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
     ) * open_trade.position_size_2
 
     pnl_total = pnl_stock1 + pnl_stock2
+
+    # calculate transaction costs for each stock and leg 
+    cost_rate = backtestConfig.BacktestConfig.transaction_cost_bps / 10000
+
+    open_notional = (
+        abs(open_trade.position_size_1 * open_trade.entry_price_1)
+        + abs(open_trade.position_size_2 * open_trade.entry_price_2)
+    )
+
+    close_notional = (
+        abs(open_trade.position_size_1 * stock1_price)
+        + abs(open_trade.position_size_2 * stock2_price)
+    )
+
+    transaction_costs = (open_notional + close_notional) * cost_rate
 
     # track the trade in our list
     closed_trades.append(
@@ -56,7 +79,7 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
             exit_price_2 = stock2_price,
             exit_zscore = zscore,
             gross_pnl = pnl_total,
-            transaction_costs = 0, # hardcode as 0 for now, will model later
+            transaction_costs = transaction_costs,
             net_pnl = pnl_total
             ))
 
@@ -127,21 +150,6 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
 
     # simulate the trade, reset the last_signal and return the pair. This would be None if you have closed out the pair from the last window, AND the relationship has broken down
     if open_trade is not None:
-        
-        # need to find the current zscore. need to put all of this in its own function:
-        stock1 = current_pair[0]
-        stock2 = current_pair[1]
-
-        start_minute = current_minute - backtestConfig.BacktestConfig.trading_window_size
-        mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
-        stock1_logPrices = np.log(current_window_stocks_df.loc[mask, stock1])
-        stock2_logPrices = np.log(current_window_stocks_df.loc[mask, stock2])
-
-        # this needs to be the log price, not actual price
-        hedge = compute_hedge_ratio(stock1_logPrices, stock2_logPrices)
-
-        # ignore the signal as we are closing anyway
-        _, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), open_trade=open_trade, beta=hedge)
 
         assert open_trade is not None, (
             f"CLOSE signal with no open trade. Window={window_id}"
@@ -154,7 +162,6 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
             f"Entry={open_trade.entry_timestamp}\n"
             f"Exit/current={current_minute}\n"
             f"Entry z={open_trade.entry_zscore}\n"
-            f"Exit z={zscore}"
         ) 
 
         simulate_close_trade(
@@ -164,35 +171,10 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
             closed_trades=completed_trades, 
             open_trade=open_trade, 
             is_force_closure=True, 
-            zscore=zscore)
+            zscore=None)
 
     # return the current best pair and None: the current open trade is always going to be None after we close
     return best_pair, None
-
-def UpdateCurrentStockPair(best_pair):
-    """Parse the best_pair dataframe into several variables we can use later.
-
-        Args: 
-            best_pair (DataFrame): the dataframe produced in the above function containing the p_value of the current
-            best pair as per our cointegration test.
-
-        Returns:
-            List[string]: A list containing the two stock symbols as strings.
-            string: The first stock symbol.
-            string: The second stock symbol.
-    """
-
-    if best_pair is not None:
-        print(best_pair)
-        stock1 = best_pair.iloc[0, 0]
-        stock2 = best_pair.iloc[0, 1]
-        current_stock_pair = [stock1, stock2]
-    else:
-        # if the current pair is not cointegrated / there is no cointegrated pair, then return this as the pair
-        current_stock_pair = ["", ""]
-
-    print("this is the current pair we will trade on:", current_stock_pair)
-    return current_stock_pair, stock1, stock2
 
 # NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
 def Calculate_Cointegrated_Pair(
@@ -308,7 +290,10 @@ def run_backtest(
             current_minute += trading_window_size
             continue
 
-        current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
+        # parse the df
+        stock1 = best_pair.iloc[0, 0]
+        stock2 = best_pair.iloc[0, 1]
+        current_stock_pair = [stock1, stock2]
 
         # get the df for the cointegration lookback period (eg 3 months)
         cointegration_df = data.loc[

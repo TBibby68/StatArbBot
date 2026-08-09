@@ -1,22 +1,20 @@
 from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, engine_string
 from alpaca_trade_api.rest import REST, TimeFrame
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from sqlalchemy import create_engine
 import numpy as np
-import pandas as pd
+import backtestConfig as config
 # This file is where we pull the 6 months stock data for big banks and push it to a database: FOR BACKTESTING
 
 # Create the API object: this uses a different API connection than the websocket connection that the stream uses. 
 api = REST(API_KEY, API_SECRET, base_url=BASE_URL)
 
 # define the initial list of stocks to test
-initial_stock_batch = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+initial_stock_batch = config.DataConfig.tickers
 
 combined = None
 
-start_date = "2022-08-01"
-end_date = "2025-08-01"
+start_date = config.DataConfig.start_date
+end_date = config.DataConfig.end_date
 
 for ticker in initial_stock_batch:
 

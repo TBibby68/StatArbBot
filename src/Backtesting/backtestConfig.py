@@ -41,7 +41,7 @@ class CompletedTrade:
     exit_timestamp: int
     exit_price_1: float
     exit_price_2: float
-    exit_zscore: float
+    exit_zscore: float | None
     
     gross_pnl: float
     transaction_costs: float
@@ -62,20 +62,24 @@ class CompletedTrade:
             "net_pnl": self.net_pnl,
         }
 
-
 class BacktestConfig:
     # parameters we may want to change for different experiments/fine tuning:
-    # TODO: put this in a config file.
-    entry_threshold = 1
+    entry_threshold = 1.5
     exit_threshold = 0.5
 
     cointegration_window_size = 24000
+    eg_sig_level = 0.05
     trading_window_size = 3900
     zscore_window_size = 100
 
-    transaction_cost_bps = 0.0
+    transaction_cost_bps = 1
     initial_capital = 10_000.0
 
-    hedge_ratio_estimator = HedgeRatioMethod.KALMAN
+    hedge_ratio_estimator = HedgeRatioMethod.STATIC_OLS
 
     force_close_at_window_end = True
+
+class DataConfig:
+    tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+    start_date = "2022-08-01"
+    end_date = "2025-08-01"
