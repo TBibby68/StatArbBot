@@ -1,6 +1,5 @@
 from collections import deque
 import pandas as pd
-import GlobalVariables # this is so we don't have any circular imports
 
 # this is the file that contain functions that generate the signal to trade
 
@@ -15,26 +14,23 @@ def compute_zscore(spread_series, window=30):
     rolling_std = spread_series.rolling(window=window).std()
     return (spread_series - rolling_mean) / rolling_std
 
-def update_and_get_signal(price_a, price_b, beta=1.0, isRunFromBacktest=True):
+def update_and_get_signal(price_a, price_b, open_trade, beta=1.0):
+
+    # add the spread to the rolling last 100 values 
     spread = compute_spread(price_a, price_b, beta)
-    spread_history.append(spread) # add the spread to the rolling last 100 values 
+    spread_history.append(spread) 
 
     if len(spread_history) < 1:
         return None  # not enough data
 
     zscore_series = pd.Series(spread_history)
     z = compute_zscore(zscore_series).iloc[-1]
-    GlobalVariables.last2_z_scores.append(z) # add the score to the queue
 
-    # Example signal logic: definitely needs some work: it's currently just entering and has no exit logic essentially
-    if abs(z) > 1.5 and GlobalVariables.last_signal != "OPEN":
-        if isRunFromBacktest:
-            GlobalVariables.last_signal = "OPEN"
+    # threshold logic: TODO: make this configurable for the experiments
+    if abs(z) > 1.5 and open_trade is None:
         return "OPEN", z
-    elif abs(z) < 0.5 and GlobalVariables.last_signal == "OPEN": # can't start with a close!
-        if isRunFromBacktest:
-            GlobalVariables.last_signal = "CLOSE"
+    elif abs(z) < 0.5 and open_trade is not None:
         return "CLOSE", z 
     
-    return None, z
     # if neither of these is satisfied then we return nothing 
+    return None, z

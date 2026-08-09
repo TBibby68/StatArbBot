@@ -1,100 +1,14 @@
-import numpy as np
 from signals import update_and_get_signal
-import GlobalVariables
 import pandas as pd
+import numpy as np
 from EGinPythonBACKTEST import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
-import importlib.metadata
 import backtestConfig
-try:
-    from pykalman import KalmanFilter
-except importlib.metadata.PackageNotFoundError:
-    KalmanFilter = None
-
-# stocks we have data on to potentially trade = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
 
 # SECTION 1: DEFINING FUNCTIONS:
 
-# need to check whether this variable kalman filter stuff works with a single coint test every 2 weeks? I don't think it does. 
-def update_kalman_beta(prev_beta, prev_cov, x_new, y_new, kf):
-    """
-    Update the Kalman filter for one new observation.
-    
-    Parameters
-    ----------
-    prev_beta : float
-        Previous beta estimate.
-    prev_cov : ndarray
-        Previous state covariance matrix (1x1 matrix).
-    x_new : float
-        New stock1 price (the independent variable).
-    y_new : float
-        New stock2 price (the dependent variable). 
-    kf : KalmanFilter
-        A configured pykalman KalmanFilter object.
-        
-    Returns
-    -------
-    new_beta : float
-        Updated beta estimate.
-    new_cov : ndarray
-        Updated state covariance matrix.
-    """
-    # reshape x_new into the required (1,1) observation matrix
-    obs_matrix = np.array([[x_new]])
-
-    # run one-step Kalman update
-    new_state_mean, new_state_cov = kf.filter_update(
-        filtered_state_mean = np.array([prev_beta]),
-        filtered_state_covariance = prev_cov,
-        observation = y_new,
-        observation_matrix = obs_matrix
-    )
-
-    new_beta = new_state_mean[0]
-    return new_beta, new_state_cov
-
-def compute_beta_kalman_initial(stock1_prices, stock2_prices):
-    """
-    Estimate time-varying hedge ratio between two time series using Kalman filter.
-
-    Returns:
-        1) numpy array of beta estimates (same length as input series)
-        2) covariance matrix so we can calculate the next beta iteratively
-        3) the Kalman filter object
-    """
-    # convert the stock price series into arrays(a stack of T (1x1) arrays)
-    X = stock1_prices.values.reshape(-1, 1, 1)
-    y = stock2_prices.values
-
-    # here we are modelling: y_t = H_t.x_t + e_t,
-    # where H is our hedge ratio at time t (just a series of values in a linear regression instead of 1 constant value). 
-    # the strategy for lower latency is to calculate this initially, but then only increment it every time step after that, so we don't
-    # calculate the full 2 weeks of data every minute. The Kalman filter calculates based on the previos beta 
-
-    kf = KalmanFilter(
-        transition_matrices=[1],
-        observation_matrices=X,
-        initial_state_mean=0,
-        initial_state_covariance=0.01,
-        observation_covariance=25, # high = 25 / low <= 1 => less sensitive to volatility as it assumes more noise
-        transition_covariance=0.01 # high = 0.1 => more sensitive to changes over time 
-    )
-
-    # for a string covariance relationship, we typically want the transition covariance to be low, observation to be high(but noisy data means a little higher), 
-    # transition matrix to be 1, 0 initial state mean, initial state covariance small.
-    
-    state_means, state_covs = kf.filter(y)
-    # gt the latest covariance matrix
-    latest_covariance = state_covs[-1]
-    beta_estimates = state_means[:, 0]
-    # grab the latest hedge ratio to use for the signal generation
-    latest_beta = beta_estimates[-1]
-    print("this is the latest beta: ", latest_beta)
-    return latest_beta, latest_covariance, kf
-
-def compute_beta(stock1_prices, stock2_prices):
+def compute_hedge_ratio(stock1_prices, stock2_prices):
     """Compute the hedge ratio between 2 time series(stock prices).
         
         Args: 
@@ -106,8 +20,9 @@ def compute_beta(stock1_prices, stock2_prices):
     """
 
     cov_matrix = np.cov(stock1_prices, stock2_prices)
-    beta = cov_matrix[0, 1] / cov_matrix[1, 1]
-    return beta
+    ratio = cov_matrix[0, 1] / cov_matrix[1, 1]
+
+    return ratio
 
 def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trades, open_trade, is_force_closure, zscore):
     """Calculates the resulting PnL of closing a position with the current stock prices.
@@ -119,7 +34,6 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
         Returns:
             None.
     """
-    GlobalVariables.number_of_signals += 1
 
     pnl_stock1 = (
         stock1_price - open_trade.entry_price_1
@@ -130,19 +44,6 @@ def simulate_close_trade(stock1_price, stock2_price, current_minute, closed_trad
     ) * open_trade.position_size_2
 
     pnl_total = pnl_stock1 + pnl_stock2
-
-    GlobalVariables.cash += pnl_total
-    GlobalVariables.trade_returns.append(pnl_total)
-
-    # update the max profit / max drawdown from a single trade
-    if pnl_total >= GlobalVariables.max_profit:
-        GlobalVariables.max_profit = pnl_total
-    elif pnl_total < GlobalVariables.max_drawdown:
-        GlobalVariables.max_drawdown = pnl_total
-
-    # reset the position
-    GlobalVariables.stock1_stock = 0
-    GlobalVariables.stock2_stock = 0
 
     # track the trade in our list
     closed_trades.append(
@@ -173,22 +74,18 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
         Returns:
             None.
     """
-    # note: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
-    GlobalVariables.number_of_signals += 1
-    direction = "SHORT"
+
+    # NOTE: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
     if zscore > 0:
         # z positive: spread is too high → short A, long B
-        GlobalVariables.stock1_stock -=  10 / stock1_price 
-        GlobalVariables.stock2_stock += hedge_ratio * 10 / stock2_price
+        direction = "SHORT"
+        stock1_stock = - 10 / stock1_price 
+        stock2_stock = hedge_ratio * 10 / stock2_price
     else:
-        direction = "LONG"
         # z negative: spread is too low → long A, short B
-        GlobalVariables.stock1_stock += 10 / stock1_price
-        GlobalVariables.stock2_stock -= hedge_ratio * 10 / stock2_price 
-
-    # keep track of the entry prices
-    GlobalVariables.entry_price_stock1 = stock1_price
-    GlobalVariables.entry_price_stock2 = stock2_price
+        direction = "LONG"
+        stock1_stock = 10 / stock1_price
+        stock2_stock = - hedge_ratio * 10 / stock2_price 
 
     # add an open trade object, which we will then complete to when we close the trade
     open_trade = backtestConfig.TradeEntry(
@@ -200,20 +97,9 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
         entry_price_2 = stock2_price, 
         entry_zscore = zscore, 
         hedge_ratio_entry = hedge_ratio, 
-        position_size_1 = GlobalVariables.stock1_stock, 
-        position_size_2 = GlobalVariables.stock2_stock,
+        position_size_1 = stock1_stock, 
+        position_size_2 = stock2_stock,
         direction = direction)
-        # Added when we close the trade:
-        # exit_timestamp =
-        # exit_price_1 =
-        # exit_price_2 =
-        # exit_zscore =
-        # hedge_ratio_exit =
-        # exit_reason =
-        # gross_pnl =
-        # transaction_costs =
-        # net_pnl =
-        # holding_minutes =
 
     return open_trade
 
@@ -239,8 +125,9 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
     if best_pair is not None:
         print("the value of the previous pair was too high, this is the new current p_value: ", str(best_pair["p_value"][0]))
 
-    # simulate the trade, reset the last_signal and return the pair
-    if GlobalVariables.last_signal != "CLOSE":
+    # simulate the trade, reset the last_signal and return the pair. This would be None if you have closed out the pair from the last window, AND the relationship has broken down
+    if open_trade is not None:
+        
         # need to find the current zscore. need to put all of this in its own function:
         stock1 = current_pair[0]
         stock2 = current_pair[1]
@@ -251,14 +138,22 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
         stock2_logPrices = np.log(current_window_stocks_df.loc[mask, stock2])
 
         # this needs to be the log price, not actual price
-        beta = compute_beta(stock1_logPrices, stock2_logPrices)
-        _, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), beta)
+        hedge = compute_hedge_ratio(stock1_logPrices, stock2_logPrices)
 
-        simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True, zscore=zscore)
-        GlobalVariables.last_signal = "CLOSE"
-    # reset the kalman filter flag for the next pair
-    GlobalVariables.ran_initial_kalman_filter = False
-    return best_pair
+        # ignore the signal as we are closing anyway
+        _, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), open_trade=open_trade, beta=hedge)
+
+        simulate_close_trade(
+            stock1_price=stock1_price, 
+            stock2_price=stock2_price, 
+            current_minute=current_minute, 
+            closed_trades=completed_trades, 
+            open_trade=open_trade, 
+            is_force_closure=True, 
+            zscore=zscore)
+
+    # return the current best pair AND the current open trade if there is one
+    return best_pair, open_trade
 
 def UpdateCurrentStockPair(best_pair):
     """Parse the best_pair dataframe into several variables we can use later.
@@ -272,6 +167,7 @@ def UpdateCurrentStockPair(best_pair):
             string: The first stock symbol.
             string: The second stock symbol.
     """
+
     if best_pair is not None:
         print(best_pair)
         stock1 = best_pair.iloc[0, 0]
@@ -285,7 +181,16 @@ def UpdateCurrentStockPair(best_pair):
     return current_stock_pair, stock1, stock2
 
 # NOTE: this function is currently fixed at a 3 month coint period, so don't try to edit that parameter before that has been changed. 
-def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, current_minute, open_trade, completed_trades, current_window_stocks_df):
+def Calculate_Cointegrated_Pair(
+        window_id, 
+        engine, 
+        current_stock_pair, 
+        stock1_price: float | None, 
+        stock2_price: float | None, 
+        current_minute, 
+        open_trade, 
+        completed_trades, 
+        current_window_stocks_df):
     """Query the database for the cointegration score of the current pair, and if there is no current pair, then find one.
 
         This function is similar to find_new_pair_and_close_current_position(), but with the difference 1 key difference: it 
@@ -313,58 +218,71 @@ def Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_pr
         
         # close current position if the relationship break down, and find a new pair to trade on
         if best_pair is None:
-            best_pair = find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price, current_minute=current_minute, open_trade=open_trade, completed_trades=completed_trades, current_window_stocks_df=current_window_stocks_df, current_pair=current_stock_pair)
+            best_pair, open_trade = find_new_pair_and_force_close(
+                window_id, 
+                engine, 
+                stock1_price, 
+                stock2_price, 
+                current_minute=current_minute, 
+                open_trade=open_trade, 
+                completed_trades=completed_trades, 
+                current_window_stocks_df=current_window_stocks_df, 
+                current_pair=current_stock_pair)
         else:
+            # this will run if the last window's pair is the same as the current pair. 
             print("this is the current p_value: ", str(best_pair["p_value"][0]))
 
-    return best_pair
+    # open_trade will only not be None here if we:
+    # 1) continue trading the same pair as the last window, and 
+    # 2) carry over an open position across from one window to the next
+    return best_pair, open_trade
 
-# SECTION 3: LOOPING THROUGH THE 3 MONTH PERIOD OF THE BACKTESTING DATA AND SIMULATING THE TRADING STRATEGY:
+# SECTION 2: backtest function:
 
 def run_backtest(
     data : pd.DataFrame,
     config : backtestConfig.BacktestConfig
 ):
     """
-    Run the strategy only on the supplied data.
+    Run the strategy only on the supplied data, and populate a pandas DataFrame with the resulting trades.
 
     """
     
+    # Initialise variables
     completed_trades: list[dict] = []
-
-    # stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
-    stock1_price = 45230
-    stock2_price = 235
-
-    # this is the end date of the first trading period, (eg 3 months coint test + 2 weeks trading)
-    trading_time = config.trading_window_size
-    coint_window = config.cointegration_window_size
-    window_end_time = coint_window + trading_time
-    current_stock_pair = ["", ""]
-    
-    # intialise for persistence
+    stock1_price = None
+    stock2_price = None
     window_id = 0
     current_window_stocks_df = pd.DataFrame
+    current_stock_pair = ["", ""]
+    current_open_trade = None
 
-    # need to ensure we still time to trade, so every period is the same. 
-    while window_end_time < len(data) - trading_time:
+    # eg 3 months coint test + 2 weeks trading
+    trading_window_size = config.trading_window_size
+    cointegration_window_size = config.cointegration_window_size
+    trading_window_end = cointegration_window_size + trading_window_size
 
-        current_open_trade = None
-        GlobalVariables.last_signal = "CLOSE" 
+    # While we still have [2 weeks] to trade on
+    while trading_window_end + trading_window_size < len(data):
 
-        # if there's no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
-        # then parse the results into strings, 
-        # and then finally query the backtesting database for the full coint time + trading time of data for this pair.
-
-        # it needs to be the previous window's result, as at this point that's all the information we have.
-        best_pair = Calculate_Cointegrated_Pair(window_id, engine, current_stock_pair, stock1_price, stock2_price, 0, current_open_trade, completed_trades=completed_trades, current_window_stocks_df=current_window_stocks_df)
+        # test for what the best pair to trade on for this window is, and if there is a position still open on a pair that is no longer cointegrated for the current window, we close that position out, and update the current pair to trade on.
+        best_pair, current_open_trade = Calculate_Cointegrated_Pair(
+            window_id=window_id, 
+            engine=engine, 
+            current_stock_pair=current_stock_pair, 
+            stock1_price=stock1_price, 
+            stock2_price=stock2_price, 
+            current_minute=0, 
+            open_trade=current_open_trade, 
+            completed_trades=completed_trades, 
+            current_window_stocks_df=current_window_stocks_df)
 
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if best_pair is None:
             print("no cointegrated pair found for this window, moving to the next window")
 
             window_id += 1
-            window_end_time += trading_time
+            trading_window_end += trading_window_size
             continue
 
         current_stock_pair, stock1, stock2 = UpdateCurrentStockPair(best_pair)
@@ -372,34 +290,41 @@ def run_backtest(
         # slice the data frame. NOTE: as it stands now the cointegration is only calculated at 3 month windows, so changing the coint_window parameter will make the backtest completely nonsensical until this has been fixed.
         current_window_stocks_df = data.loc[
             data["minute"].between(
-                window_end_time - coint_window,
-                window_end_time + trading_time,
+                trading_window_end - cointegration_window_size,
+                trading_window_end + trading_window_size,
                 inclusive="right",
             ),
             [stock1, stock2, "minute"],
         ].copy()
 
         # simulate the trading on the period
-        for _,row in current_window_stocks_df.iloc[trading_time:].iterrows():
+        for _,row in current_window_stocks_df.iloc[trading_window_size:].iterrows():
             # pull the prices "currently" and then pull the series from "coint_window ago" to "trading_time ahead":
             stock1_price = row[stock1]
             stock2_price = row[stock2]
             current_minute = int(row["minute"])
-            start_minute = current_minute - trading_time
+            start_minute = current_minute - trading_window_size
             mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
             stock1_logPrices = np.log(current_window_stocks_df.loc[mask, stock1])
             stock2_logPrices = np.log(current_window_stocks_df.loc[mask, stock2])
 
             # compute hedge ratio
-            beta = compute_beta(stock1_logPrices, stock2_logPrices)
-            signal, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), beta)
+            beta = compute_hedge_ratio(stock1_logPrices, stock2_logPrices)
+            signal, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), open_trade=current_open_trade, beta=beta)
 
             # simulate the trade based on the signal
             if signal == "OPEN":
                 print("Opening a position")
-                current_open_trade = simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio=beta, current_minute=current_minute, stock1=stock1, stock2=stock2, zscore=zscore)
-                # save the zscore in a global variable:
-                GlobalVariables.last_open_zscore = zscore
+                current_open_trade = simulate_open_trade(
+                    window_id, 
+                    stock1_price, 
+                    stock2_price, 
+                    hedge_ratio=beta, 
+                    current_minute=current_minute, 
+                    stock1=stock1, 
+                    stock2=stock2, 
+                    zscore=zscore)
+                
             elif signal == "CLOSE":
                 assert current_open_trade is not None, (
                     f"CLOSE signal with no open trade. Window={window_id}"
@@ -415,13 +340,20 @@ def run_backtest(
                 )    
 
                 print("closing a position")
-                simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False, zscore=zscore)
+                simulate_close_trade(
+                    stock1_price, 
+                    stock2_price, 
+                    current_minute=current_minute, 
+                    closed_trades=completed_trades, 
+                    open_trade=current_open_trade, 
+                    is_force_closure=False, 
+                    zscore=zscore)
 
                 current_open_trade = None
 
         # increment the window and time
         window_id += 1
-        window_end_time += trading_time
+        trading_window_end += trading_window_size
     
     # push to postgres
     rows = [trade.to_dict() for trade in completed_trades]
@@ -435,7 +367,8 @@ def run_backtest(
         index=False,
     )
 
-# run the backtest on the postgres data
+# Implementation
+
 engine = create_engine(engine_string)
 
 # ensure we do not sample from the log prices used to generate the signal!
@@ -448,11 +381,13 @@ data = pd.read_sql(
     """,
     con=engine
 )
+
 assert data["minute"].is_monotonic_increasing
 print(data["minute"].duplicated().sum())
 print(data["minute"].min())
 print(data["minute"].max())
 print(len(data))
+
 backtest_config = backtestConfig.BacktestConfig()
 
 run_backtest(data, backtest_config)
