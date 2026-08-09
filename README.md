@@ -29,4 +29,4 @@ The purpose of this project is to investigate the statistical models that can pr
 
 ## Reproduce these results and investigate yourself:
 
-To run the backtest locally, you will need to set up the postgres db, and link to the Alpaca API, and then run the following files in this order: priceDataCapture.py -> cointegrationDataGathering.py -> backtesting.py. Specific config for the backtest can be edited in the backtestConfig.py file. 
+To run the backtest locally, you will need to set up the postgres db, and link to the Alpaca API, and then run the following files in this order: priceDataCapture.py -> cointegrationDataGathering.py -> backtesting.py (in the backtesting folder). Specific config for the backtest can be edited in the backtestConfig.py file. You can then run the writeDataToExcel.py file to see a complete log of all the trades in the desired period for easy manipulation. 
