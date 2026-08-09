@@ -80,7 +80,7 @@ def simulate_close_trade(
             exit_zscore = zscore,
             gross_pnl = pnl_total,
             transaction_costs = transaction_costs,
-            net_pnl = pnl_total
+            net_pnl = pnl_total - transaction_costs
             ))
 
 def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, current_minute, stock1, stock2, zscore):
@@ -148,7 +148,7 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
     if best_pair is not None:
         print("the value of the previous pair was too high, this is the new current p_value: ", str(best_pair["p_value"][0]))
 
-    # simulate the trade, reset the last_signal and return the pair. This would be None if you have closed out the pair from the last window, AND the relationship has broken down
+    # simulate the trade and return the pair. This would be None if you have closed out the pair from the last window, AND the relationship has broken down
     if open_trade is not None:
 
         assert open_trade is not None, (

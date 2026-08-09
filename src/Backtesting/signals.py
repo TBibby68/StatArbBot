@@ -30,7 +30,7 @@ def update_and_get_signal(price_a, price_b, open_trade, beta=1.0):
     # threshold logic: TODO: make this configurable for the experiments
     if abs(z) > config.BacktestConfig.entry_threshold and open_trade is None:
         return "OPEN", z
-    elif abs(z) < config.BacktestConfig.entry_threshold and open_trade is not None:
+    elif abs(z) < config.BacktestConfig.exit_threshold and open_trade is not None:
         return "CLOSE", z 
     
     # if neither of these is satisfied then we return nothing 

@@ -4,7 +4,7 @@ This project is a trading algorithm, written in python, that follows a statistic
 
 ## Strategy:
 
-The strategy of this bot is based on the concept of cointegeration. In short cointegration means that there exists a combination of two time series that is **stationary**. 
+The strategy is based on the concept of cointegeration. In short cointegration means that there exists a combination of two time series that is **stationary**. 
 A time series is stationary if its mean, variance and autocovariances are time constant. For the purposes of trading, this means that the time series is "mean-reverting",
 that is, if the time series is above its mean, then it has a high likelihood of reverting back down to its mean in the near future. 
 
@@ -18,28 +18,15 @@ exist, and thus essential for our strategy to work.
 
 ![image](https://github.com/user-attachments/assets/8d7a34e8-793a-402f-b5b1-e6636261ed81)
 
-The bot works on a rolling 2 week window, meaning that we test the previous 3 months of data for this cointgration relationship, and then if we find that a pair has this relationship, we trade on that pair for the next 2 weeks, at which point
+The baseline works on a rolling 2 week window, meaning that we test the previous 3 months of data for this cointgration relationship, and then if we find that a pair has this relationship, we trade on that pair for the next 2 weeks, at which point
 we then recalculate the cointegration, and if the relationship has broken down, we close out the current position if one is open, and we try to find another pair to trade for the next 2 weeks. 
 
 ## Assumptions:
 
-The key assumptions of this strategy (which are not very realistic) are that we are trading in a perfectly liquid market, with effectively infinite volumes, meaning that there is no risk posed by reductions in liquidity and thus inability to close positions, and there is also negligable spread. We also assume zero slippage, and then zero impact on the market from our trades. Essentially this is the "perfect" set of conditions for a trading strategy. 
+The key assumptions of this strategy (which are not very realistic) are that we are trading in a perfectly liquid market, with effectively infinite volumes, meaning that there is no risk posed by reductions in liquidity and thus inability to close positions, and there is also negligable spread. We also assume zero impact on the market from our trades (which at the level we are trading is relatively realisitc). 
 
 The purpose of this project is to investigate the statistical models that can produce a successful alpha generating strategy - implementing this in real life is another step.
 
-## Kalman filters:
+## Reproduce these results and investigate yourself:
 
-
-
-## Project Structure:
-
-This project is a work in progress, and currently the focus is on refining the strategy in backtests so that it has a sharpe ratio estimate of above 0.5. Because of this, the most 
-developed and worked on file is **backtesting.py**. Other files that the backtest relies on are **cointegrationDataGathering.py**, **EGinPythonBACKTEST.py**, **priceDataCapture.py**, **signals.py**, and **GlobalVariables.py**. These files 
-fetch minute by minute price data for 10 stocks: 10 large US banks(under the qialitative assumption that these stocks are likely to be cointegrated) from the alpaca market API, and then run the **Engle-Granger cointegration hypothesis test**
-on each pair of stocks, and then stores the results in several tables in a local postgres database, which we then query when running the backtest simulation.
-
-## Further Development Ideas:
-
-Currently I am working on tracking the performance of each pair. Certain pairs make more money than others despite having the same cointegration test results, which could be an indication of a more reliable relationship existing, 
-and so my goal now is to measure this over a longer period(1-2 years instead of 3 months), and analyse the results to possibly give scores to each possible pairing that is combined with the 
-cointegration test results to determine which pairs are actually traded. 
+To run the backtest locally, you will need to set up the postgres db, and link to the Alpaca API, and then run the following files in this order: priceDataCapture.py -> cointegrationDataGathering.py -> backtesting.py. Specific config for the backtest can be edited in the backtestConfig.py file. 
