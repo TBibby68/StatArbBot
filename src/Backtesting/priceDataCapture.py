@@ -44,15 +44,18 @@ combined.ffill(inplace=True)
 # Then fill backward to catch leading NaNs
 combined.bfill(inplace=True)
 # convert to log prices for cointegration testing
-combined = np.log(combined)
+combined_signal_gen_data = np.log(combined)
 
 # add this in so we can connect it to the 2 backtesting tables
-combined['minute'] = range(len(combined))
+combined_signal_gen_data['minute'] = range(len(combined_signal_gen_data))
 
 # Create SQLAlchemy engine: here postgres is the default database and postgres is also the owner of this database(user field here)
 engine = create_engine(engine_string)
 
-# Push DataFrame to table
-combined.to_sql('backtesting_data', engine, if_exists='append', index=False)
+# NOTE: Rename the tables here to make sure they match what they're supposed to be.
+
+# Push DataFrames to separate tables in postgres for signal generation (log prices) and actual prices (for backtest)
+combined.to_sql('backtesting_data_prices', engine, if_exists='replace', index=False)
+combined_signal_gen_data.to_sql('backtesting_data', engine, if_exists='replace', index=False)
 
 print("data added to postgres!")

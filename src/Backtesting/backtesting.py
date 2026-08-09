@@ -247,11 +247,12 @@ def find_new_pair_and_force_close(window_id, engine, stock1_price, stock2_price,
 
         start_minute = current_minute - backtestConfig.BacktestConfig.trading_window_size
         mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
-        stock1_prices = current_window_stocks_df.loc[mask, stock1]
-        stock2_prices = current_window_stocks_df.loc[mask, stock2]
+        stock1_logPrices = np.log(current_window_stocks_df.loc[mask, stock1])
+        stock2_logPrices = np.log(current_window_stocks_df.loc[mask, stock2])
 
-        beta = compute_beta(stock1_prices, stock2_prices)
-        _, zscore = update_and_get_signal(stock1_price, stock2_price, beta)
+        # this needs to be the log price, not actual price
+        beta = compute_beta(stock1_logPrices, stock2_logPrices)
+        _, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), beta)
 
         simulate_close_trade(stock1_price=stock1_price, stock2_price=stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=open_trade, is_force_closure=True, zscore=zscore)
         GlobalVariables.last_signal = "CLOSE"
@@ -328,10 +329,8 @@ def run_backtest(
     Run the strategy only on the supplied data.
 
     """
-
-    current_open_trade = None
+    
     completed_trades: list[dict] = []
-    GlobalVariables.last_signal = "CLOSE" 
 
     # stock1_price and stock2_price can be anything, as they are reset after the first iteration, and only used after that.
     stock1_price = 45230
@@ -343,14 +342,15 @@ def run_backtest(
     window_end_time = coint_window + trading_time
     current_stock_pair = ["", ""]
     
-    # TODO: make this calculated based on a proper calendar, not just an approx value
-    final_trading_period = 3900
-    window_id = 0
     # intialise for persistence
+    window_id = 0
     current_window_stocks_df = pd.DataFrame
 
     # need to ensure we still time to trade, so every period is the same. 
-    while window_end_time < len(data) - final_trading_period:
+    while window_end_time < len(data) - trading_time:
+
+        current_open_trade = None
+        GlobalVariables.last_signal = "CLOSE" 
 
         # if there's no current pair, then find one. If there is a current pair, test it, and if it doesn't meet the standard, find another one.
         # then parse the results into strings, 
@@ -387,13 +387,12 @@ def run_backtest(
             current_minute = int(row["minute"])
             start_minute = current_minute - trading_time
             mask = (current_window_stocks_df["minute"] >= start_minute) & (current_window_stocks_df["minute"] < current_minute)
-            stock1_prices = current_window_stocks_df.loc[mask, stock1]
-            stock2_prices = current_window_stocks_df.loc[mask, stock2]
+            stock1_logPrices = np.log(current_window_stocks_df.loc[mask, stock1])
+            stock2_logPrices = np.log(current_window_stocks_df.loc[mask, stock2])
 
             # compute hedge ratio
-            # TODO: add in introspection here so we can have another class to hold all the methods and call cleanly here
-            beta = compute_beta(stock1_prices, stock2_prices)
-            signal, zscore = update_and_get_signal(stock1_price, stock2_price, beta)
+            beta = compute_beta(stock1_logPrices, stock2_logPrices)
+            signal, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), beta)
 
             # simulate the trade based on the signal
             if signal == "OPEN":
@@ -402,8 +401,23 @@ def run_backtest(
                 # save the zscore in a global variable:
                 GlobalVariables.last_open_zscore = zscore
             elif signal == "CLOSE":
+                assert current_open_trade is not None, (
+                    f"CLOSE signal with no open trade. Window={window_id}"
+                )
+
+                assert current_minute >= current_open_trade.entry_timestamp, (
+                    f"TIME TRAVEL!\n"
+                    f"Window={window_id}\n"
+                    f"Entry={current_open_trade.entry_timestamp}\n"
+                    f"Exit={current_minute}\n"
+                    f"Entry z={current_open_trade.entry_zscore}\n"
+                    f"Exit z={zscore}"
+                )    
+
                 print("closing a position")
                 simulate_close_trade(stock1_price, stock2_price, current_minute=current_minute, closed_trades=completed_trades, open_trade=current_open_trade, is_force_closure=False, zscore=zscore)
+
+                current_open_trade = None
 
         # increment the window and time
         window_id += 1
@@ -424,7 +438,21 @@ def run_backtest(
 # run the backtest on the postgres data
 engine = create_engine(engine_string)
 
-data = pd.read_sql('SELECT * FROM backtesting_data', con=engine)
+# ensure we do not sample from the log prices used to generate the signal!
+
+data = pd.read_sql(
+    """
+    SELECT *
+    FROM backtesting_data_prices 
+    ORDER BY minute
+    """,
+    con=engine
+)
+assert data["minute"].is_monotonic_increasing
+print(data["minute"].duplicated().sum())
+print(data["minute"].min())
+print(data["minute"].max())
+print(len(data))
 backtest_config = backtestConfig.BacktestConfig()
 
 run_backtest(data, backtest_config)
