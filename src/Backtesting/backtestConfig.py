@@ -73,6 +73,7 @@ class BacktestConfig:
     zscore_window_size = 100
 
     transaction_cost_bps = 1
+    slippage_bps = 1
     initial_capital = 10_000.0
 
     hedge_ratio_estimator = HedgeRatioMethod.STATIC_OLS

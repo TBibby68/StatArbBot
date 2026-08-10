@@ -1,12 +1,20 @@
 from signals import update_and_get_signal
 import pandas as pd
 import numpy as np
-from EGinPythonBACKTEST import CointegrationBacktestQuery
+from Backtesting.engleGrangerQuery import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
 
 # SECTION 1: DEFINING FUNCTIONS:
+
+def apply_slippage(price, position_size, slippage_bps):
+    slippage_rate = slippage_bps / 10000
+
+    if position_size > 0:   # buy
+        return price * (1 + slippage_rate)
+    else:                   # sell
+        return price * (1 - slippage_rate)
 
 def compute_hedge_ratio(stock1_prices, stock2_prices):
     """Compute the hedge ratio between 2 time series(stock prices).
@@ -41,20 +49,34 @@ def simulate_close_trade(
         Returns:
             None.
     """
+    config = backtestConfig.BacktestConfig
 
-    # calculate the gross PnL for each stock
+    # estimate slippage costs
+    exit_exec_price_1 = apply_slippage(
+        stock1_price,
+        -open_trade.position_size_1,
+        config.slippage_bps,
+    )
+
+    exit_exec_price_2 = apply_slippage(
+        stock2_price,
+        -open_trade.position_size_2,
+        config.slippage_bps,
+    )
+
+    # calculate the gross PnL for each stock (AFTER slippage)
     pnl_stock1 = (
-        stock1_price - open_trade.entry_price_1
+        exit_exec_price_1 - open_trade.entry_price_1
     ) * open_trade.position_size_1
 
     pnl_stock2 = (
-        stock2_price - open_trade.entry_price_2
+        exit_exec_price_2 - open_trade.entry_price_2
     ) * open_trade.position_size_2
 
     pnl_total = pnl_stock1 + pnl_stock2
 
-    # calculate transaction costs for each stock and leg 
-    cost_rate = backtestConfig.BacktestConfig.transaction_cost_bps / 10000
+    # estimate transaction costs for each stock and leg 
+    cost_rate = config.transaction_cost_bps / 10000
 
     open_notional = (
         abs(open_trade.position_size_1 * open_trade.entry_price_1)
@@ -83,7 +105,15 @@ def simulate_close_trade(
             net_pnl = pnl_total - transaction_costs
             ))
 
-def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, current_minute, stock1, stock2, zscore):
+def simulate_open_trade(
+        window_id, 
+        stock1_price, 
+        stock2_price, 
+        hedge_ratio, 
+        current_minute, 
+        stock1, 
+        stock2, 
+        zscore):
     """Calculates the resulting PnL of opening a position with the current stock prices and hedge ratio.
     
         This function updates several Global Variables that keep track of the current PnL of the bot, and 
@@ -98,17 +128,32 @@ def simulate_open_trade(window_id, stock1_price, stock2_price, hedge_ratio, curr
             None.
     """
 
+    config = backtestConfig.BacktestConfig
+
+    # estimate slippage costs
+    entry_exec_price_1 = apply_slippage(
+        stock1_price,
+        stock1_stock,
+        config.slippage_bps,
+    )
+
+    entry_exec_price_2 = apply_slippage(
+        stock2_price,
+        stock2_stock,
+        config.slippage_bps,
+    )
+
     # NOTE: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
     if zscore > 0:
         # z positive: spread is too high → short A, long B
         direction = "SHORT"
-        stock1_stock = - 10 / stock1_price 
-        stock2_stock = hedge_ratio * 10 / stock2_price
+        stock1_stock = - 10 / entry_exec_price_1 
+        stock2_stock = hedge_ratio * 10 / entry_exec_price_2
     else:
         # z negative: spread is too low → long A, short B
         direction = "LONG"
-        stock1_stock = 10 / stock1_price
-        stock2_stock = - hedge_ratio * 10 / stock2_price 
+        stock1_stock = 10 / entry_exec_price_1
+        stock2_stock = - hedge_ratio * 10 / entry_exec_price_2 
 
     # add an open trade object, which we will then complete to when we close the trade
     open_trade = backtestConfig.TradeEntry(
