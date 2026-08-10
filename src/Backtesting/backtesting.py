@@ -1,7 +1,7 @@
 from signals import update_and_get_signal
 import pandas as pd
 import numpy as np
-from Backtesting.engleGrangerQuery import CointegrationBacktestQuery
+from engleGrangerQuery import CointegrationBacktestQuery
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
@@ -130,7 +130,20 @@ def simulate_open_trade(
 
     config = backtestConfig.BacktestConfig
 
-    # estimate slippage costs
+    # calculate the position size based on the market price with NO slippage
+    # NOTE: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
+    if zscore > 0:
+        # z positive: spread is too high → short A, long B
+        direction = "SHORT"
+        stock1_stock = - 10 / stock1_price 
+        stock2_stock = hedge_ratio * 10 / stock2_price
+    else:
+        # z negative: spread is too low → long A, short B
+        direction = "LONG"
+        stock1_stock = 10 / stock1_price
+        stock2_stock = - hedge_ratio * 10 / stock2_price 
+
+    # estimate slippage costs on the position size
     entry_exec_price_1 = apply_slippage(
         stock1_price,
         stock1_stock,
@@ -143,26 +156,14 @@ def simulate_open_trade(
         config.slippage_bps,
     )
 
-    # NOTE: the spread is calculated ONE WAY, meaning the trades have to be exact opposites of each other 
-    if zscore > 0:
-        # z positive: spread is too high → short A, long B
-        direction = "SHORT"
-        stock1_stock = - 10 / entry_exec_price_1 
-        stock2_stock = hedge_ratio * 10 / entry_exec_price_2
-    else:
-        # z negative: spread is too low → long A, short B
-        direction = "LONG"
-        stock1_stock = 10 / entry_exec_price_1
-        stock2_stock = - hedge_ratio * 10 / entry_exec_price_2 
-
     # add an open trade object, which we will then complete to when we close the trade
     open_trade = backtestConfig.TradeEntry(
         window_id = window_id, 
         stock1 = stock1, 
         stock2 = stock2, 
         entry_timestamp = current_minute, 
-        entry_price_1 = stock1_price, 
-        entry_price_2 = stock2_price, 
+        entry_price_1 = entry_exec_price_1, 
+        entry_price_2 = entry_exec_price_2, 
         entry_zscore = zscore, 
         hedge_ratio_entry = hedge_ratio, 
         position_size_1 = stock1_stock, 
