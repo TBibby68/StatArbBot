@@ -25,6 +25,8 @@ class TradeEntry:
     entry_timestamp: int
     entry_price_1: float
     entry_price_2: float
+    entry_price_1_slipped: float
+    entry_price_2_slipped: float
     entry_zscore: float
     hedge_ratio_entry: float
     position_size_1: float

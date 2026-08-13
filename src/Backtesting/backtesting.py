@@ -52,13 +52,13 @@ def simulate_close_trade(
     config = backtestConfig.BacktestConfig
 
     # estimate slippage costs
-    exit_exec_price_1 = apply_slippage(
+    exit_price_1_slipped = apply_slippage(
         stock1_price,
         -open_trade.position_size_1,
         config.slippage_bps,
     )
 
-    exit_exec_price_2 = apply_slippage(
+    exit_price_2_slipped = apply_slippage(
         stock2_price,
         -open_trade.position_size_2,
         config.slippage_bps,
@@ -75,13 +75,13 @@ def simulate_close_trade(
 
     pnl_total = pnl_stock1 + pnl_stock2
 
-    # calculate the gross PnL for each stock (AFTER slippage)
+    # calculate the gross PnL for each stock (AFTER slippage for BOTH open and close legs)
     pnl_stock1_Slipped = (
-        exit_exec_price_1 - open_trade.entry_price_1
+        exit_price_1_slipped - open_trade.entry_price_1_slipped
     ) * open_trade.position_size_1
 
     pnl_stock2_Slipped = (
-        exit_exec_price_2 - open_trade.entry_price_2
+        exit_price_2_slipped - open_trade.entry_price_2_slipped
     ) * open_trade.position_size_2
 
     pnl_total_Slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
@@ -89,14 +89,16 @@ def simulate_close_trade(
     # estimate transaction costs for each stock and leg 
     cost_rate = config.transaction_cost_bps / 10000
 
+    # opening transaction cots
     open_notional = (
-        abs(open_trade.position_size_1 * exit_exec_price_1)
-        + abs(open_trade.position_size_2 * exit_exec_price_2)
+        abs(open_trade.position_size_1 * open_trade.entry_price_1_slipped)
+        + abs(open_trade.position_size_2 * open_trade.entry_price_2_slipped)
     )
 
+    # closing transaction costs (position size is fixed)
     close_notional = (
-        abs(open_trade.position_size_1 * exit_exec_price_1)
-        + abs(open_trade.position_size_2 * exit_exec_price_2)
+        abs(open_trade.position_size_1 * open_trade.entry_price_1_slipped)
+        + abs(open_trade.position_size_2 * open_trade.entry_price_2_slipped)
     )
 
     transaction_costs = (open_notional + close_notional) * cost_rate
@@ -156,13 +158,13 @@ def simulate_open_trade(
         stock2_stock = - hedge_ratio * 10 / stock2_price 
 
     # estimate slippage costs on the position size
-    entry_exec_price_1 = apply_slippage(
+    entry_price_1_slipped = apply_slippage(
         stock1_price,
         stock1_stock,
         config.slippage_bps,
     )
 
-    entry_exec_price_2 = apply_slippage(
+    entry_price_2_slipped = apply_slippage(
         stock2_price,
         stock2_stock,
         config.slippage_bps,
@@ -174,8 +176,10 @@ def simulate_open_trade(
         stock1 = stock1, 
         stock2 = stock2, 
         entry_timestamp = current_minute, 
-        entry_price_1 = entry_exec_price_1, 
-        entry_price_2 = entry_exec_price_2, 
+        entry_price_1 = stock1_price, 
+        entry_price_2 = stock2_price, 
+        entry_price_1_slipped = entry_price_1_slipped, 
+        entry_price_2_slipped = entry_price_2_slipped, 
         entry_zscore = zscore, 
         hedge_ratio_entry = hedge_ratio, 
         position_size_1 = stock1_stock, 
