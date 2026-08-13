@@ -64,28 +64,39 @@ def simulate_close_trade(
         config.slippage_bps,
     )
 
-    # calculate the gross PnL for each stock (AFTER slippage)
+    # calculate the gross PnL for each stock (BEFORE slippage)
     pnl_stock1 = (
-        exit_exec_price_1 - open_trade.entry_price_1
+        stock1_price - open_trade.entry_price_1
     ) * open_trade.position_size_1
 
     pnl_stock2 = (
-        exit_exec_price_2 - open_trade.entry_price_2
+        stock2_price - open_trade.entry_price_2
     ) * open_trade.position_size_2
 
     pnl_total = pnl_stock1 + pnl_stock2
+
+    # calculate the gross PnL for each stock (AFTER slippage)
+    pnl_stock1_Slipped = (
+        exit_exec_price_1 - open_trade.entry_price_1
+    ) * open_trade.position_size_1
+
+    pnl_stock2_Slipped = (
+        exit_exec_price_2 - open_trade.entry_price_2
+    ) * open_trade.position_size_2
+
+    pnl_total_Slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
 
     # estimate transaction costs for each stock and leg 
     cost_rate = config.transaction_cost_bps / 10000
 
     open_notional = (
-        abs(open_trade.position_size_1 * open_trade.entry_price_1)
-        + abs(open_trade.position_size_2 * open_trade.entry_price_2)
+        abs(open_trade.position_size_1 * exit_exec_price_1)
+        + abs(open_trade.position_size_2 * exit_exec_price_2)
     )
 
     close_notional = (
-        abs(open_trade.position_size_1 * stock1_price)
-        + abs(open_trade.position_size_2 * stock2_price)
+        abs(open_trade.position_size_1 * exit_exec_price_1)
+        + abs(open_trade.position_size_2 * exit_exec_price_2)
     )
 
     transaction_costs = (open_notional + close_notional) * cost_rate
@@ -101,8 +112,9 @@ def simulate_close_trade(
             exit_price_2 = stock2_price,
             exit_zscore = zscore,
             gross_pnl = pnl_total,
+            gross_pnl_slipped = pnl_total_Slipped,
             transaction_costs = transaction_costs,
-            net_pnl = pnl_total - transaction_costs
+            net_pnl = pnl_total_Slipped - transaction_costs
             ))
 
 def simulate_open_trade(

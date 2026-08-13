@@ -44,6 +44,7 @@ class CompletedTrade:
     exit_zscore: float | None
     
     gross_pnl: float
+    gross_pnl_slipped : float
     transaction_costs: float
     net_pnl: float
 
@@ -58,6 +59,7 @@ class CompletedTrade:
             "exit_price_2": self.exit_price_2,
             "exit_zscore": self.exit_zscore,
             "gross_pnl": self.gross_pnl,
+            "gross_pnl_slipped": self.gross_pnl_slipped,
             "transaction_costs": self.transaction_costs,
             "net_pnl": self.net_pnl,
         }
