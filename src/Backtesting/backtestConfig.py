@@ -68,7 +68,7 @@ class CompletedTrade:
 
 class BacktestConfig:
     # parameters we may want to change for different experiments/fine tuning:
-    entry_threshold = 1.5
+    entry_threshold = 4.5
     exit_threshold = 0.5
 
     cointegration_window_size = 24000

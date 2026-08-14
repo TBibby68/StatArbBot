@@ -1,0 +1,7 @@
+Based on these data, we will freeze the strategy with an entry z score of 3.5.
+
+Next steps:
+1) perform stress testing
+2) run OOS testing
+3) run walk forward testing
+4) If it survives, deploy, if not, back to the drawing board
