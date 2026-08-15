@@ -46,6 +46,7 @@ combined_signal_gen_data = np.log(combined)
 
 # add this in so we can connect it to the 2 backtesting tables
 combined_signal_gen_data['minute'] = range(len(combined_signal_gen_data))
+combined['minute'] = range(len(combined))
 
 # Create SQLAlchemy engine: here postgres is the default database and postgres is also the owner of this database(user field here)
 engine = create_engine(engine_string)
