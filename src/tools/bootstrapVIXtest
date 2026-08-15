@@ -1,0 +1,45 @@
+import numpy as np
+import pandas as pd
+
+df = pd.read_excel(r"C:\Users\tbibb\Downloads\completed_trades1.xlsx")
+df = df.dropna(subset=["VIX", "gross_pnl"])
+
+low_vix = df.loc[df["VIX"] < 15, "gross_pnl"].to_numpy()
+high_vix = df.loc[df["VIX"] >= 15, "gross_pnl"].to_numpy()
+
+# Observed difference
+observed_difference = high_vix.mean() - low_vix.mean()
+
+print(f"Low VIX mean:  {low_vix.mean():.6f}")
+print(f"High VIX mean: {high_vix.mean():.6f}")
+print(f"Difference:    {observed_difference:.6f}")
+
+rng = np.random.default_rng(42)
+
+n_bootstraps = 10_000
+bootstrap_differences = []
+
+for _ in range(n_bootstraps):
+
+    low_sample = rng.choice(
+        low_vix,
+        size=len(low_vix),
+        replace=True
+    )
+
+    high_sample = rng.choice(
+        high_vix,
+        size=len(high_vix),
+        replace=True
+    )
+
+    difference = high_sample.mean() - low_sample.mean()
+
+    bootstrap_differences.append(difference)
+
+bootstrap_differences = np.array(bootstrap_differences)
+
+lower = np.percentile(bootstrap_differences, 2.5)
+upper = np.percentile(bootstrap_differences, 97.5)
+
+print(f"95% bootstrap CI: [{lower:.6f}, {upper:.6f}]")

@@ -77,8 +77,7 @@ class BacktestConfig:
     zscore_window_size = 100
 
     transaction_cost_bps = 1
-    slippage_bps = 5
-    initial_capital = 10_000.0
+    slippage_bps = 1
 
     hedge_ratio_estimator = HedgeRatioMethod.STATIC_OLS
 
@@ -86,5 +85,5 @@ class BacktestConfig:
 
 class DataConfig:
     tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
-    start_date = "2022-08-01"
-    end_date = "2025-08-01"
+    start_date = "2025-08-02"
+    end_date = "2026-08-02"
