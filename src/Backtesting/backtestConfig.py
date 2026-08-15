@@ -68,7 +68,7 @@ class CompletedTrade:
 
 class BacktestConfig:
     # parameters we may want to change for different experiments/fine tuning:
-    entry_threshold = 4.5
+    entry_threshold = 3.5
     exit_threshold = 0.5
 
     cointegration_window_size = 24000
@@ -77,7 +77,7 @@ class BacktestConfig:
     zscore_window_size = 100
 
     transaction_cost_bps = 1
-    slippage_bps = 1
+    slippage_bps = 5
     initial_capital = 10_000.0
 
     hedge_ratio_estimator = HedgeRatioMethod.STATIC_OLS
