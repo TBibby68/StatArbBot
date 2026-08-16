@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-df = pd.read_excel(r"C:\Users\tbibb\Downloads\completed_trades1.xlsx")
+df = pd.read_excel(r"C:\Users\tbibb\Downloads\abc.xlsx")
 
 # Remove trades where VIX is missing
 df = df.dropna(subset=["VIX", "gross_pnl"])

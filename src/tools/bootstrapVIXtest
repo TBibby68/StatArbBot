@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-df = pd.read_excel(r"C:\Users\tbibb\Downloads\completed_trades1.xlsx")
+df = pd.read_excel(r"C:\Users\tbibb\Downloads\abc.xlsx")
 df = df.dropna(subset=["VIX", "gross_pnl"])
 
 low_vix = df.loc[df["VIX"] < 15, "gross_pnl"].to_numpy()

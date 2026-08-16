@@ -44,6 +44,12 @@ combined.bfill(inplace=True)
 # convert to log prices for cointegration testing
 combined_signal_gen_data = np.log(combined)
 
+# keep the timestamp column in here!
+combined = combined.sort_index()
+combined_signal_gen_data = combined_signal_gen_data.sort_index()
+combined["timestamp"] = combined.index
+combined_signal_gen_data["timestamp"] = combined_signal_gen_data.index
+
 # add this in so we can connect it to the 2 backtesting tables
 combined_signal_gen_data['minute'] = range(len(combined_signal_gen_data))
 combined['minute'] = range(len(combined))
