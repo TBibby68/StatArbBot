@@ -14,7 +14,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'completed_trades'
+            WHERE table_name = 'cointegration_results'
         );
     """)).scalar()
 
@@ -24,11 +24,11 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM completed_trades",
+            "SELECT * FROM cointegration_results",
             con=engine
         )
 
-        output_file = r"C:\Users\tbibb\Downloads\completed_trades.xlsx"
+        output_file = r"C:\Users\tbibb\Downloads\cointegration_results.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -54,4 +54,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'completed_trades' not found.")
+        print("Table 'cointegration_results' not found.")

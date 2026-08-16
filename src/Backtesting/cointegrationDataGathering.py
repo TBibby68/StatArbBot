@@ -105,7 +105,7 @@ def main():
     backtesting_data = pd.read_sql(
         "SELECT * FROM backtesting_data",
         con=engine
-    ).drop(columns=["minute"])
+    ).drop(columns=["minute", "timestamp"])
 
     # Ensure numeric data
     backtesting_data = backtesting_data.astype(float)
@@ -218,7 +218,7 @@ def main():
     results_df.to_sql(
         "cointegration_results",
         con=engine,
-        if_exists="append",
+        if_exists="replace",
         index=False,
         method="multi",
         chunksize=1000,

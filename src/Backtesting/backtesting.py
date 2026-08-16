@@ -315,6 +315,15 @@ def run_backtest(
     current_stock_pair = ["", ""]
     open_trade = None
 
+    spread_volatility_window = pd.DataFrame(columns=[
+        "window_id",
+        "timestamp",
+        "stock1",
+        "stock2",
+        "hedge_ratio",
+        "spread_volatility",
+    ])
+
     # eg 3 months coint test + 2 weeks trading
     trading_window_size = config.trading_window_size
     cointegration_window_size = config.cointegration_window_size
@@ -380,8 +389,27 @@ def run_backtest(
                 trading_window_end,
                 inclusive="right",
             ),
-            [stock1, stock2, "minute"],
+            [stock1, stock2, "minute", "timestamp"],
         ].copy()
+
+        # Calculate canonical log spread
+        current_window_stocks_df["spread"] = (
+            np.log(current_window_stocks_df[stock1])
+            - hedge_ratio * np.log(current_window_stocks_df[stock2])
+        )
+
+        # Spread volatility across this trading window
+        spread_volatility = current_window_stocks_df["spread"].std()
+
+        # One diagnostic row for this window
+        spread_volatility_window.loc[len(spread_volatility_window)] = {
+            "window_id": window_id,
+            "timestamp": current_window_stocks_df["timestamp"].iloc[0],
+            "stock1": stock1,
+            "stock2": stock2,
+            "hedge_ratio": hedge_ratio,
+            "spread_volatility": spread_volatility
+        }
 
         # NOTE: "current_minute" at this point should still be the start of the trading window
 
@@ -447,6 +475,13 @@ def run_backtest(
 
     trades_df.to_sql(
         "completed_trades",
+        con=engine,
+        if_exists="replace",
+        index=False,
+    )
+
+    spread_volatility_window.to_sql(
+        "volatility_table",
         con=engine,
         if_exists="replace",
         index=False,

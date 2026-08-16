@@ -2,6 +2,7 @@
 from enum import StrEnum
 from dataclasses import dataclass
 from dataclasses import asdict
+import datetime
 
 # potential methods to explore for calculating the hedge ratio. 
 class HedgeRatioMethod(StrEnum):
@@ -16,6 +17,15 @@ class HedgeRatioMethod(StrEnum):
 class TradeCloseMethod(StrEnum):
     SIGNAL = "signal"
     FORCED = "forced"
+
+@dataclass
+class SpreadRow:
+    timestamp: datetime
+    window_id: int
+    stock1: str
+    stock2: str
+    hedge_ratio: float
+    spread_volatility: float
 
 @dataclass
 class TradeEntry:

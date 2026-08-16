@@ -5,4 +5,4 @@ A few things we want to test:
 
 ----------------------------------
 validate the formulas in the phase analysis
-
+validate the entire framework just a bit more around the edges
