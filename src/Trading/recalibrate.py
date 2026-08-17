@@ -1,10 +1,10 @@
-import StatArbBot.Trading.pricesStarter
-import StatArbBot.Trading.starterForCloudInstanceOfBot
+import pricesStarter
+import starterForCloudInstanceOfBot
 
 def main():
     print("booting up stat arb bot...")
-    StatArbBot.Trading.pricesStarter.main()
-    StatArbBot.Trading.starterForCloudInstanceOfBot.main()
+    pricesStarter.main()
+    starterForCloudInstanceOfBot.main()
 
 if __name__ == "__main__":
     main()
