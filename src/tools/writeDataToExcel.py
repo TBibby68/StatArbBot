@@ -7,6 +7,16 @@ engine = create_engine(engine_string)
 
 print(f"Connected to: {engine.url}")
 
+def on_minute_bar(timestamp, prices):
+    # prices = {"JPM": 302.15, "BAC": 51.42}
+
+    # 1. update rolling history
+    # 2. calculate spread
+    # 3. calculate z-score
+    # 4. decide OPEN / CLOSE / NOTHING
+    # 5. return a signal object
+    pass
+
 with engine.connect() as conn:
 
     # Check table exists

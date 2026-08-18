@@ -5,8 +5,7 @@ import websockets
 import json
 import numpy as np
 from Backtesting.signals import update_and_get_signal # to get the trading signals
-from StatArbBot.Trading.trading import place_pair_trade # to actually do the trading
-import Backtesting.GlobalVariables as GlobalVariables
+from trading import place_pair_trade # to actually do the trading
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
 from collections import deque
@@ -71,7 +70,6 @@ def main():
                     # we get json responses from the API. 
                     await ws.send(json.dumps(sub_msg)) # this pulls the response 
 
-                    GlobalVariables.last_signal = None # to track the last order 
 
                     while True:
                         msg = await ws.recv()
@@ -95,13 +93,12 @@ def main():
                                         beta = compute_beta(stock1_prices, stock2_prices)
                                         print(beta)
                                         signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
-                                        if signal not in (None, GlobalVariables.last_signal):
+                                        if signal not in (None):
                                             print(signal)
                                             value = 10
                                             # need to pull through the current and previous z scores: current is -1 and previous is 0
-                                            place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, GlobalVariables.z_scores[-1], GlobalVariables.z_scores[0], signal)
+                                            place_pair_trade(stock1_ticker, stock2_ticker, stock1_price, stock2_price, value, signal)
                                             print("trade placed!")
-                                            GlobalVariables.last_signal = signal
                         else:
                             print("Non-bar message:", data)
                             # reconnection logic:

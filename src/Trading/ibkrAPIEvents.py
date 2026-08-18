@@ -2,12 +2,11 @@ from StatArbBot.config import engine_string
 from ib_insync import *
 import numpy as np
 from Backtesting.signals import update_and_get_signal # to get the trading signals
-from StatArbBot.Trading.trading import place_pair_trade # to actually do the trading
+from trading import place_pair_trade # to actually do the trading
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
 from collections import deque
-from datetime import datetime, timedelta
-import threading, time, traceback
+import threading, time
 
 def ts(): return time.strftime("%H:%M:%S")
 
@@ -35,14 +34,6 @@ def main():
         cov_matrix = np.cov(s1_Prices, s2_Prices)
         beta = cov_matrix[0, 1] / cov_matrix[1, 1]
         return beta
-
-    # This file handles the streaming of prices from the alpaca API, and then calls the signals file and the trading file to actually
-    # perform the trades and calculate when the spread has widened enough to enter a position
-
-    global stock1_price  # so we can update it
-    global stock2_price 
-
-    GlobalVariables.last_signal = None # to track the last order 
 
     # check which pairs we can get data for here: Not: USDT, 
     initial_pair = find_initial_pair(engine)
@@ -111,9 +102,8 @@ def main():
             if signal == "OPEN" or signal == "CLOSE":
                 print("we should trade now")
 
-            if signal not in (None, GlobalVariables.last_signal):
+            if signal not in (None):
                 # this needs to be updated AFTER we validate this condition
-                GlobalVariables.last_signal = signal
                 print(f"New signal: {signal}")
 
                 # Example trade size
@@ -125,14 +115,9 @@ def main():
                     stock1_price,
                     stock2_price,
                     value,
-                    GlobalVariables.z_scores[-1],  # most recent z-score
-                    GlobalVariables.z_scores[0],   # previous z-score
                     signal,
                     ib # the IBKR connection
                 )
-
-                print("Trade placed!")
-                GlobalVariables.last_signal = signal
 
     # "Inject" the contract when attaching the event handler
     bars1.updateEvent += lambda bars, hasNewBar: onBarUpdate(bars, hasNewBar, contract1)

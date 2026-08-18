@@ -4,7 +4,6 @@ from Backtesting.signals import update_and_get_signal # to get the trading signa
 from alpaca_trade_api.rest import REST, TimeFrame
 from datetime import datetime, timedelta
 import pandas as pd
-import Backtesting.GlobalVariables as GlobalVariables
 from statsmodels.tsa.stattools import coint
 import itertools
 # this is the file that tests which stocks are cointegrated: but only on live data, so API calls are made in this file!
@@ -108,7 +107,6 @@ def CointegrationTestOnBigBanks(start_time, basket_of_stocks):
                 next2weeks = next2weeks.join(df, how="inner")
 
         # put net2weeks below combined to get the full history: the length og the "combined" df is where we will start "trading"/backtesting
-        GlobalVariables.startIterationForBacktestingEngine = len(combined)
         combined_df = pd.concat([combined, next2weeks], ignore_index=True)
 
         # Extract the corresponding columns from the combined DataFrame
