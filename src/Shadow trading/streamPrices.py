@@ -3,6 +3,7 @@ import time
 from sqlalchemy import create_engine, text
 from StatArbBot.config import engine_string
 from datetime import datetime, timezone
+import pandas as pd
 
 # just want to prove we can stream delayed prices into python: need to ensure the writing to postgres works
 
@@ -23,6 +24,41 @@ def insert_market_data(conn, timestamp, ticker, bid, ask, last, mid):
             "mid": mid,
         }
     )
+
+def insert_minute_bar(conn, ticker, bar):
+
+    conn.execute(
+        text("""
+            INSERT INTO ibkr_minute_bars
+                (timestamp, ticker, open, high, low, close)
+            VALUES
+                (:timestamp, :ticker, :open, :high, :low, :close)
+        """),
+        {
+            "timestamp": bar["minute"],
+            "ticker": ticker,
+            "open": bar["open"],
+            "high": bar["high"],
+            "low": bar["low"],
+            "close": bar["close"],
+        }
+    )
+
+def create_new_bar(minute, price):
+
+    return {
+        "minute": minute,
+        "open": price,
+        "high": price,
+        "low": price,
+        "close": price,
+    }
+
+def update_bar(bar, price):
+
+    bar["high"] = max(bar["high"], price)
+    bar["low"] = min(bar["low"], price)
+    bar["close"] = price
 
 def ts(): return time.strftime("%H:%M:%S")
 
@@ -72,52 +108,119 @@ def main():
 
     print("Connected to Postgres")
 
-    # engine.begin() automatically commits inserts
-    with engine.begin() as conn:
+    current_bars = {
+        "JPM": None,
+        "BAC": None,
+    }
 
-        try:
+    try:
 
-            while True:
+        while True:
 
-                timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(timezone.utc)
 
-                # JPM
-                insert_market_data(
-                    conn=conn,
-                    timestamp=timestamp,
-                    ticker="JPM",
-                    bid=jpm_ticker.bid,
-                    ask=jpm_ticker.ask,
-                    last=jpm_ticker.last,
-                    mid=jpm_ticker.marketPrice(),
-                )
+            # Round down to beginning of minute
+            minute = timestamp.replace(
+                second=0,
+                microsecond=0
+            )
 
-                # BAC
-                insert_market_data(
-                    conn=conn,
-                    timestamp=timestamp,
-                    ticker="BAC",
-                    bid=bac_ticker.bid,
-                    ask=bac_ticker.ask,
-                    last=bac_ticker.last,
-                    mid=bac_ticker.marketPrice(),
-                )
+            prices = {
+                "JPM": jpm_ticker.marketPrice(),
+                "BAC": bac_ticker.marketPrice(),
+            }
 
-                print(
-                    timestamp,
-                    "JPM:",
-                    jpm_ticker.marketPrice(),
-                    "| BAC:",
-                    bac_ticker.marketPrice()
-                )
+            raw_data = {
+                "JPM": {
+                    "bid": jpm_ticker.bid,
+                    "ask": jpm_ticker.ask,
+                    "last": jpm_ticker.last,
+                    "mid": jpm_ticker.marketPrice(),
+                },
+                "BAC": {
+                    "bid": bac_ticker.bid,
+                    "ask": bac_ticker.ask,
+                    "last": bac_ticker.last,
+                    "mid": bac_ticker.marketPrice(),
+                },
+            }
+
+            # engine.begin() automatically commits inserts
+            with engine.begin() as conn:
+
+                for ticker in ["JPM", "BAC"]:
+
+                    price = prices[ticker]
+
+                    # ------------------------------------------
+                    # Save raw ~1-second snapshot
+                    # ------------------------------------------
+
+                    insert_market_data(
+                        conn=conn,
+                        timestamp=timestamp,
+                        ticker=ticker,
+                        bid=raw_data[ticker]["bid"],
+                        ask=raw_data[ticker]["ask"],
+                        last=raw_data[ticker]["last"],
+                        mid=raw_data[ticker]["mid"],
+                    )
+
+                    current_bar = current_bars[ticker]
+
+                    # ------------------------------------------
+                    # First observation
+                    # ------------------------------------------
+
+                    if current_bar is None:
+
+                        current_bars[ticker] = create_new_bar(
+                            minute,
+                            price
+                        )
+
+                    # ------------------------------------------
+                    # Still inside same minute
+                    # ------------------------------------------
+
+                    elif current_bar["minute"] == minute:
+
+                        update_bar(
+                            current_bar,
+                            price
+                        )
+
+                    # ------------------------------------------
+                    # New minute has begun
+                    # ------------------------------------------
+
+                    else:
+
+                        # Save completed previous minute
+                        insert_minute_bar(
+                            conn=conn,
+                            ticker=ticker,
+                            bar=current_bar
+                        )
+
+                        print(
+                            f"Completed {ticker} bar:",
+                            current_bar
+                        )
+
+                        # Start new minute bar
+                        current_bars[ticker] = create_new_bar(
+                            minute,
+                            price
+                        )
 
                 ib.sleep(1)
 
-        except KeyboardInterrupt:
-            print("Stopping market-data logger...")
+    except KeyboardInterrupt:
+        print("Stopping market-data logger...")
 
-        finally:
-            ib.disconnect()
+    finally:
+        ib.disconnect()
 
 if __name__ == "__main__":
     main()
