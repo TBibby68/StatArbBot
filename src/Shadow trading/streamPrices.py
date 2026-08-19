@@ -36,6 +36,12 @@ pair_states = {
 
 # push to the postgres db
 def insert_completed_shadow_trade(conn, completed_trade):
+    
+    cleaned_trade = {
+        key: value.item() if hasattr(value, "item") else value
+        for key, value in completed_trade.items()
+    }
+    
     conn.execute(
         text("""
             INSERT INTO shadow_trades (
@@ -65,7 +71,7 @@ def insert_completed_shadow_trade(conn, completed_trade):
                 :hedge_ratio
             )
         """),
-        completed_trade
+        cleaned_trade
     )
 
 # just want to prove we can stream delayed prices into python: need to ensure the writing to postgres works
@@ -316,18 +322,18 @@ def main():
                             "entry_timestamp": bar1["minute"],
                             "stock1": stock1,
                             "stock2": stock2,
-                            "entry_price_1": bar1["close"],
-                            "entry_price_2": bar2["close"],
-                            "entry_zscore": z,
-                            "hedge_ratio": state["beta"],
+                            "entry_price_1": float(bar1["close"]),
+                            "entry_price_2": float(bar2["close"]),
+                            "entry_zscore": float(z),
+                            "hedge_ratio": float(state["beta"]),
                         }
                     elif signal == "CLOSE":
                         completed_trade = {
                             **state["open_trade"],
                             "exit_timestamp": bar1["minute"],
-                            "exit_price_1": bar1["close"],
-                            "exit_price_2": bar2["close"],
-                            "exit_zscore": z,
+                            "exit_price_1": float(bar1["close"]),
+                            "exit_price_2": float(bar2["close"]),
+                            "exit_zscore": float(z),
                         }
 
                         insert_completed_shadow_trade(
