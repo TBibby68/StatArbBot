@@ -4,6 +4,35 @@ from sqlalchemy import create_engine, text
 from StatArbBot.config import engine_string
 from datetime import datetime, timezone
 import pandas as pd
+from signalGeneration import get_signal
+from hedgeRatio import hedge_ratio
+from collections import deque
+
+# empty as it is edited in the signal function
+spread_history = deque(maxlen=100)
+open_trade = None
+
+current_bars = {
+    "JPM": None,
+    "BAC": None,
+    "WFC": None,
+}
+
+latest_completed_bars = {}
+
+# testing the engingeering with multiple pairs.
+pair_states = {
+    ("JPM", "BAC"): {
+        "beta": 1.0,  # temporary engineering value
+        "spread_history": deque(maxlen=100),
+        "open_trade": None,
+    },
+    ("BAC", "WFC"): {
+        "beta": 1.0,
+        "spread_history": deque(maxlen=100),
+        "open_trade": None,
+    },
+}
 
 # just want to prove we can stream delayed prices into python: need to ensure the writing to postgres works
 
@@ -87,8 +116,9 @@ def main():
 
     jpm = Stock("JPM", "SMART", "USD")
     bac = Stock("BAC", "SMART", "USD")
+    wfc = Stock("WFC", "SMART", "USD")
 
-    qualified = ib.qualifyContracts(jpm, bac)
+    qualified = ib.qualifyContracts(jpm, bac, wfc)
 
     print("Qualified contracts:")
     for contract in qualified:
@@ -96,6 +126,7 @@ def main():
 
     jpm_ticker = ib.reqMktData(jpm)
     bac_ticker = ib.reqMktData(bac)
+    wfc_ticker = ib.reqMktData(wfc)
 
     # Allow initial market-data fields to populate
     ib.sleep(5)
@@ -111,6 +142,7 @@ def main():
     current_bars = {
         "JPM": None,
         "BAC": None,
+        "WFC": None
     }
 
     try:
@@ -128,6 +160,7 @@ def main():
             prices = {
                 "JPM": jpm_ticker.marketPrice(),
                 "BAC": bac_ticker.marketPrice(),
+                "WFC": wfc_ticker.marketPrice(),
             }
 
             raw_data = {
@@ -143,12 +176,20 @@ def main():
                     "last": bac_ticker.last,
                     "mid": bac_ticker.marketPrice(),
                 },
+                "WFC": {
+                    "bid": wfc_ticker.bid,
+                    "ask": wfc_ticker.ask,
+                    "last": wfc_ticker.last,
+                    "mid": wfc_ticker.marketPrice(),
+                }
             }
 
             # engine.begin() automatically commits inserts
             with engine.begin() as conn:
 
-                for ticker in ["JPM", "BAC"]:
+
+                # iterate through all the stocks present in our pairs
+                for ticker in ["JPM", "BAC", "WFC"]:
 
                     price = prices[ticker]
 
@@ -208,11 +249,58 @@ def main():
                             current_bar
                         )
 
+                        # Remember the completed bar
+                        latest_completed_bars[ticker] = current_bar
+
                         # Start new minute bar
                         current_bars[ticker] = create_new_bar(
                             minute,
                             price
                         )
+                                
+                for (stock1, stock2), state in pair_states.items():
+
+                    bar1 = latest_completed_bars.get(stock1)
+                    bar2 = latest_completed_bars.get(stock2)
+
+                    if bar1 is None or bar2 is None:
+                        continue
+
+                    if bar1["minute"] != bar2["minute"]:
+                        continue
+
+                    signal, z = get_signal(
+                        price_a=bar1["close"],
+                        price_b=bar2["close"],
+                        open_trade=state["open_trade"],
+                        spread_history=state["spread_history"],
+                        beta=state["beta"],
+                    )
+
+                    print(
+                        f"{minute} | "
+                        f"{stock1}-{stock2} | "
+                        f"z={z:.3f} | "
+                        f"signal={signal} | "
+                        f"open_trade={state['open_trade'] is not None}"
+                    )
+
+                    print(
+                        stock1,
+                        stock2,
+                        "history:",
+                        len(state["spread_history"])
+                    )
+
+                    print(
+                        bar1["minute"],
+                        stock1,
+                        stock2,
+                        "z:",
+                        z,
+                        "signal:",
+                        signal
+                    )
 
                 ib.sleep(1)
 

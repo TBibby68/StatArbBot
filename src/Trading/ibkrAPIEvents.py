@@ -1,7 +1,7 @@
 from StatArbBot.config import engine_string
 from ib_insync import *
 import numpy as np
-from Backtesting.signals import update_and_get_signal # to get the trading signals
+from Backtesting.signals import get_signal # to get the trading signals
 from trading import place_pair_trade # to actually do the trading
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
@@ -96,7 +96,7 @@ def main():
             stock2_price = stock2_prices[-1]
 
             # Generate signal (and update z-scores internally)
-            signal = update_and_get_signal(stock1_price, stock2_price, beta, False)
+            signal = get_signal(stock1_price, stock2_price, beta, False)
             print(signal)
 
             if signal == "OPEN" or signal == "CLOSE":

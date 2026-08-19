@@ -4,7 +4,7 @@ import asyncio
 import websockets
 import json
 import numpy as np
-from Backtesting.signals import update_and_get_signal # to get the trading signals
+from Backtesting.signals import get_signal # to get the trading signals
 from trading import place_pair_trade # to actually do the trading
 from sqlalchemy import create_engine # for the 3 months to jump start it
 import pandas as pd
@@ -92,7 +92,7 @@ def main():
                                         # need to make sure that we have 200 minutes of rolling history 
                                         beta = compute_beta(stock1_prices, stock2_prices)
                                         print(beta)
-                                        signal = update_and_get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
+                                        signal = get_signal(stock1_price, stock2_price, beta) # want this to return the z scores queue as well
                                         if signal not in (None):
                                             print(signal)
                                             value = 10

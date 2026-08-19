@@ -1,4 +1,4 @@
-from signals import update_and_get_signal
+from signals import get_signal
 import pandas as pd
 import numpy as np
 from engleGrangerQuery import CointegrationBacktestQuery
@@ -16,7 +16,7 @@ def apply_slippage(price, position_size, slippage_bps):
     else:                   # sell
         return price * (1 - slippage_rate)
 
-def compute_hedge_ratio(stock1_prices, stock2_prices):
+def hedge_ratio(stock1_prices, stock2_prices):
     """Compute the hedge ratio between 2 time series(stock prices).
         
         Args: 
@@ -377,7 +377,7 @@ def run_backtest(
         ].copy()
 
         # calculate a static hedge ratio for the trading period (eg 2 weeks)
-        hedge_ratio = compute_hedge_ratio(
+        hedge_ratio = hedge_ratio(
             np.log(cointegration_df[stock1]),
             np.log(cointegration_df[stock2]),
         )
@@ -421,7 +421,7 @@ def run_backtest(
             current_minute = int(row["minute"])
 
             # calculate the signal
-            signal, zscore = update_and_get_signal(np.log(stock1_price), np.log(stock2_price), open_trade=open_trade, beta=hedge_ratio)
+            signal, zscore = get_signal(np.log(stock1_price), np.log(stock2_price), open_trade=open_trade, beta=hedge_ratio)
 
             # simulate the trade based on the signal
             if signal == "OPEN":
