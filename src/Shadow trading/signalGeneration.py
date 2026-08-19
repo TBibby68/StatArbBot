@@ -1,6 +1,7 @@
 from collections import deque
 import pandas as pd
 import StatArbBot.src.Backtesting.backtestConfig as config
+import math
 
 # this is the file that contain functions that generate the signal to trade
 
@@ -23,6 +24,12 @@ def get_signal(
     # add the spread to the rolling last 100 values 
     spread = compute_spread(price_a, price_b, beta)
     spread_history.append(spread) 
+
+    print(
+        "spread:", spread,
+        "history:", len(spread_history),
+        "std:", pd.Series(spread_history).tail(30).std()
+    )
 
     if len(spread_history) < 1:
         return None  # not enough data

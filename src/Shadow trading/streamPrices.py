@@ -26,11 +26,13 @@ pair_states = {
         "beta": 1.0,  # temporary engineering value
         "spread_history": deque(maxlen=100),
         "open_trade": None,
+        "last_processed_minute": None,
     },
     ("BAC", "WFC"): {
         "beta": 1.0,
         "spread_history": deque(maxlen=100),
         "open_trade": None,
+        "last_processed_minute": None,
     },
 }
 
@@ -309,12 +311,32 @@ def main():
                     if bar1["minute"] != bar2["minute"]:
                         continue
 
+                    completed_minute = bar1["minute"]
+
+                    # IMPORTANT:
+                    # Don't process this pair's same minute twice
+                    if state["last_processed_minute"] == completed_minute:
+                        continue
+
                     signal, z = get_signal(
                         price_a=bar1["close"],
                         price_b=bar2["close"],
                         open_trade=state["open_trade"],
                         spread_history=state["spread_history"],
                         beta=state["beta"],
+                    )
+
+                    # Mark minute as processed
+                    state["last_processed_minute"] = completed_minute
+
+                    print(
+                        completed_minute,
+                        stock1,
+                        stock2,
+                        "z:",
+                        z,
+                        "signal:",
+                        signal
                     )
 
                     if signal == "OPEN":
