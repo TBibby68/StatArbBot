@@ -34,6 +34,40 @@ pair_states = {
     },
 }
 
+# push to the postgres db
+def insert_completed_shadow_trade(conn, completed_trade):
+    conn.execute(
+        text("""
+            INSERT INTO shadow_trades (
+                entry_timestamp,
+                exit_timestamp,
+                stock1,
+                stock2,
+                entry_price_1,
+                entry_price_2,
+                exit_price_1,
+                exit_price_2,
+                entry_zscore,
+                exit_zscore,
+                hedge_ratio
+            )
+            VALUES (
+                :entry_timestamp,
+                :exit_timestamp,
+                :stock1,
+                :stock2,
+                :entry_price_1,
+                :entry_price_2,
+                :exit_price_1,
+                :exit_price_2,
+                :entry_zscore,
+                :exit_zscore,
+                :hedge_ratio
+            )
+        """),
+        completed_trade
+    )
+
 # just want to prove we can stream delayed prices into python: need to ensure the writing to postgres works
 
 def insert_market_data(conn, timestamp, ticker, bid, ask, last, mid):
@@ -276,6 +310,32 @@ def main():
                         spread_history=state["spread_history"],
                         beta=state["beta"],
                     )
+
+                    if signal == "OPEN":
+                        state["open_trade"] = {
+                            "entry_timestamp": bar1["minute"],
+                            "stock1": stock1,
+                            "stock2": stock2,
+                            "entry_price_1": bar1["close"],
+                            "entry_price_2": bar2["close"],
+                            "entry_zscore": z,
+                            "hedge_ratio": state["beta"],
+                        }
+                    elif signal == "CLOSE":
+                        completed_trade = {
+                            **state["open_trade"],
+                            "exit_timestamp": bar1["minute"],
+                            "exit_price_1": bar1["close"],
+                            "exit_price_2": bar2["close"],
+                            "exit_zscore": z,
+                        }
+
+                        insert_completed_shadow_trade(
+                            conn=conn,
+                            completed_trade=completed_trade
+                        )
+
+                        state["open_trade"] = None
 
                     print(
                         f"{minute} | "
