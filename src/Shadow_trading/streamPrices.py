@@ -8,6 +8,7 @@ from signalGeneration import get_signal
 from handleSignals import handle_signal
 from hedgeRatio import hedge_ratio
 from collections import deque
+from execution import execute_pair, reverse_action, insert_completed_shadow_trade
 
 # empty as it is edited in the signal function
 spread_history = deque(maxlen=100)
@@ -30,6 +31,12 @@ pair_states = {
         "last_processed_minute": None,
     },
     ("BAC", "WFC"): {
+        "beta": 1.0,
+        "spread_history": deque(maxlen=100),
+        "open_trade": None,
+        "last_processed_minute": None,
+    },
+    ("JPM", "WFC"): {
         "beta": 1.0,
         "spread_history": deque(maxlen=100),
         "open_trade": None,
@@ -94,10 +101,6 @@ def update_bar(bar, price):
 
 def ts(): return time.strftime("%H:%M:%S")
 
-# to keep track of the last minute we saw
-last_minute = { 'stock1': None, 'stock2': None }
-last_run_minute = None
-
 def main():
 
     # --------------------------------------------------------
@@ -122,6 +125,12 @@ def main():
     wfc = Stock("WFC", "SMART", "USD")
 
     qualified = ib.qualifyContracts(jpm, bac, wfc)
+
+    contracts = {
+        "JPM": jpm,
+        "BAC": bac,
+        "WFC": wfc,
+    }
 
     print("Qualified contracts:")
     for contract in qualified:
@@ -189,7 +198,6 @@ def main():
 
             # engine.begin() automatically commits inserts
             with engine.begin() as conn:
-
 
                 # iterate through all the stocks present in our pairs
                 for ticker in ["JPM", "BAC", "WFC"]:
@@ -301,7 +309,67 @@ def main():
                     )
 
                     # either open or close a position depending on the signal
-                    handle_signal(signal, z, state, stock1, stock2, bar1, bar2, conn)
+                    if signal == "OPEN" and state["open_trade"] is None:
+
+                        if z > 0:
+                            action1 = "SELL"
+                            action2 = "BUY"
+                        else:
+                            action1 = "BUY"
+                            action2 = "SELL"
+
+                        fill1, fill2 = execute_pair(
+                            ib=ib,
+                            contract1=contracts[stock1],
+                            contract2=contracts[stock2],
+                            action1=action1,
+                            action2=action2,
+                            quantity1=1,
+                            quantity2=1,
+                        )
+
+                        state["open_trade"] = {
+                            "entry_timestamp": bar1["minute"],
+                            "stock1": stock1,
+                            "stock2": stock2,
+                            "entry_price_1": fill1,
+                            "entry_price_2": fill2,
+                            "entry_zscore": float(z),
+                            "hedge_ratio": float(state["beta"]),
+                            "action1": action1,
+                            "action2": action2,
+                            "quantity1": 1,
+                            "quantity2": 1,
+                        }
+                    
+                    elif signal == "CLOSE" and state["open_trade"] is not None:
+
+                        open_trade = state["open_trade"]
+
+                        fill1, fill2 = execute_pair(
+                            ib=ib,
+                            contract1=contracts[stock1],
+                            contract2=contracts[stock2],
+                            action1=reverse_action(open_trade["action1"]),
+                            action2=reverse_action(open_trade["action2"]),
+                            quantity1=open_trade["quantity1"],
+                            quantity2=open_trade["quantity2"],
+                        )
+
+                        completed_trade = {
+                            **open_trade,
+                            "exit_timestamp": bar1["minute"],
+                            "exit_price_1": fill1,
+                            "exit_price_2": fill2,
+                            "exit_zscore": float(z),
+                        }
+
+                        insert_completed_shadow_trade(
+                            conn=conn,
+                            completed_trade=completed_trade
+                        )
+
+                        state["open_trade"] = None
 
                     print(
                         f"{minute} | "

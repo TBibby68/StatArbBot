@@ -1,0 +1,7 @@
+This folder is purely to validate the engineering of the strategy and connecting it up to IBKR. Hence we use the multiple pair strategy, and hardcode values to narrow down the scope. Things we are testing here:
+
+- order routing
+- connectivity
+- duplicate values
+- state consistent with IBKR
+- general "engineering" bugs
