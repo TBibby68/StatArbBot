@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
 
-# SECTION 1: DEFINING FUNCTIONS:
+# SECTION 1: DEFINING FUNCTIONS: generalising for multiple pairs
 
 def apply_slippage(price, position_size, slippage_bps):
     slippage_rate = slippage_bps / 10000
