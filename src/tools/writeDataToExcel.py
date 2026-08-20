@@ -24,7 +24,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'ibkr_minute_bars'
+            WHERE table_name = 'completed_trades'
         );
     """)).scalar()
 
@@ -34,13 +34,13 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM ibkr_minute_bars",
+            "SELECT * FROM completed_trades",
             con=engine
         )
 
-        trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
+        #trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
 
-        output_file = r"C:\Users\tbibb\Downloads\ibkr_minute_bars.xlsx"
+        output_file = r"C:\Users\tbibb\Downloads\completed_trades.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -66,4 +66,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'ibkr_minute_bars' not found.")
+        print("Table 'completed_trades' not found.")

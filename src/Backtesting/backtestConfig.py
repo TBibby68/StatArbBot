@@ -3,6 +3,7 @@ from enum import StrEnum
 from dataclasses import dataclass
 from dataclasses import asdict
 import datetime
+import pandas as pd
 
 # potential methods to explore for calculating the hedge ratio. 
 class HedgeRatioMethod(StrEnum):
@@ -17,6 +18,13 @@ class HedgeRatioMethod(StrEnum):
 class TradeCloseMethod(StrEnum):
     SIGNAL = "signal"
     FORCED = "forced"
+
+@dataclass
+class TradingPairWindow:
+    stock1: str
+    stock2: str
+    hedge_ratio: float
+    trading_df: pd.DataFrame
 
 @dataclass
 class SpreadRow:
@@ -92,6 +100,8 @@ class BacktestConfig:
     hedge_ratio_estimator = HedgeRatioMethod.STATIC_OLS
 
     force_close_at_window_end = True
+
+    trade_multiple_pairs = True
 
 class DataConfig:
     tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]

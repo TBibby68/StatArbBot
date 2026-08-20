@@ -4,34 +4,47 @@ import backtestConfig as config
 
 # this takes the current window id, sql engine, and the current stock pair as inputs and either returns None if the current pair is 
 # not cointegrated over the window, or the pair if they are. If no pair is provided then it just queries the whole table
-def CointegrationBacktestQuery(current_window_id, engine, current_stock_pair = None):
+def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
 
+    bconfig = config.BacktestConfig
     cointegration_result = None # this will stay as None if either the current pair is no longer cointegrated, or there isn't any cointegrated pair
     # pull the cointegration results from the database 
-    if current_stock_pair != None:
-        query = '''
-        SELECT stock1, stock2, p_value 
-        FROM cointegration_results 
-        WHERE window_id = %s AND p_value < %s
-        AND stock1 = %s AND stock2 = %s
-        AND stock1 <> 'minute'
-        AND stock2 <> 'minute'
-        '''
-        params1 = (current_window_id, config.BacktestConfig.eg_sig_level, current_stock_pair[0], current_stock_pair[1])
-        cointegration_result = pd.read_sql(query, con=engine,params=params1)
+
+    if not bconfig.trade_multiple_pairs:
+        if current_stock_pair != None:
+            query = '''
+            SELECT stock1, stock2, p_value 
+            FROM cointegration_results 
+            WHERE window_id = %s AND p_value < %s
+            AND stock1 = %s AND stock2 = %s
+            AND stock1 <> 'minute'
+            AND stock2 <> 'minute'
+            '''
+            params = (current_window_id, bconfig.eg_sig_level, current_stock_pair[0], current_stock_pair[1])
+        else:
+            query = '''
+            SELECT stock1, stock2, p_value
+            FROM cointegration_results
+            WHERE window_id = %s AND p_value < %s
+            AND stock1 <> 'minute'
+            AND stock2 <> 'minute'
+            ORDER BY p_value ASC
+            LIMIT 1
+            '''
+            params = (current_window_id, bconfig.eg_sig_level)
     else:
         query = '''
         SELECT stock1, stock2, p_value
         FROM cointegration_results
-        WHERE window_id = %s AND p_value < %s
+        WHERE window_id = %s
+        AND p_value < %s
         AND stock1 <> 'minute'
         AND stock2 <> 'minute'
         ORDER BY p_value ASC
-        LIMIT 1
         '''
-        params2 = (current_window_id, config.BacktestConfig.eg_sig_level)
-        # this will contain the pair that is cointegrated from the 10 if there are any (for this specific time block in the database)
-        cointegration_result = pd.read_sql(query, con=engine, params=params2)
+        params = (current_window_id, bconfig.eg_sig_level)
+
+    cointegration_result = pd.read_sql(query, con=engine,params=params)
 
     # set to None if it is empty so the rest of the checks work
     if cointegration_result.empty:
