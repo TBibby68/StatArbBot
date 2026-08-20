@@ -1,4 +1,5 @@
 from ib_insync import MarketOrder
+from sqlalchemy import text
 
 def submit_order(
     ib,
@@ -92,3 +93,39 @@ def execute_pair(
 
 def reverse_action(action):
     return "SELL" if action == "BUY" else "BUY"
+
+# SHADOW METHODS
+
+def insert_completed_shadow_trade(conn, completed_trade):
+
+    conn.execute(
+        text("""
+            INSERT INTO shadow_trades (
+                entry_timestamp,
+                exit_timestamp,
+                stock1,
+                stock2,
+                entry_price_1,
+                entry_price_2,
+                exit_price_1,
+                exit_price_2,
+                entry_zscore,
+                exit_zscore,
+                hedge_ratio
+            )
+            VALUES (
+                :entry_timestamp,
+                :exit_timestamp,
+                :stock1,
+                :stock2,
+                :entry_price_1,
+                :entry_price_2,
+                :exit_price_1,
+                :exit_price_2,
+                :entry_zscore,
+                :exit_zscore,
+                :hedge_ratio
+            )
+        """),
+        completed_trade
+    )

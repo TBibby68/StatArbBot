@@ -10,6 +10,8 @@ from hedgeRatio import hedge_ratio
 from collections import deque
 from execution import execute_pair, reverse_action, insert_completed_shadow_trade
 
+PAPER_MODE = False
+
 # empty as it is edited in the signal function
 spread_history = deque(maxlen=100)
 open_trade = None
@@ -318,15 +320,20 @@ def main():
                             action1 = "BUY"
                             action2 = "SELL"
 
-                        fill1, fill2 = execute_pair(
-                            ib=ib,
-                            contract1=contracts[stock1],
-                            contract2=contracts[stock2],
-                            action1=action1,
-                            action2=action2,
-                            quantity1=1,
-                            quantity2=1,
-                        )
+                        if PAPER_MODE:
+                            fill1, fill2 = execute_pair(
+                                ib=ib,
+                                contract1=contracts[stock1],
+                                contract2=contracts[stock2],
+                                action1=action1,
+                                action2=action2,
+                                quantity1=1,
+                                quantity2=1,
+                            )
+                        else:
+                            # Shadow execution
+                            fill1 = bar1["close"]
+                            fill2 = bar2["close"]
 
                         state["open_trade"] = {
                             "entry_timestamp": bar1["minute"],
@@ -346,15 +353,19 @@ def main():
 
                         open_trade = state["open_trade"]
 
-                        fill1, fill2 = execute_pair(
-                            ib=ib,
-                            contract1=contracts[stock1],
-                            contract2=contracts[stock2],
-                            action1=reverse_action(open_trade["action1"]),
-                            action2=reverse_action(open_trade["action2"]),
-                            quantity1=open_trade["quantity1"],
-                            quantity2=open_trade["quantity2"],
-                        )
+                        if PAPER_MODE:
+                            fill1, fill2 = execute_pair(
+                                ib=ib,
+                                contract1=contracts[stock1],
+                                contract2=contracts[stock2],
+                                action1=reverse_action(open_trade["action1"]),
+                                action2=reverse_action(open_trade["action2"]),
+                                quantity1=open_trade["quantity1"],
+                                quantity2=open_trade["quantity2"],
+                            )
+                        else:
+                            fill1 = bar1["close"]
+                            fill2 = bar2["close"]
 
                         completed_trade = {
                             **open_trade,
