@@ -19,7 +19,9 @@ def submit_order(
     return trade
 
 # orders are async, so we need to wait for them to actually fill to continue the strategy
-def wait_for_fill(ib, trade):
+def wait_for_fill(ib, trade, timeout_seconds=30):
+
+    elapsed = 0
 
     while not trade.isDone():
 
@@ -35,6 +37,13 @@ def wait_for_fill(ib, trade):
         )
 
         ib.sleep(0.5)
+        elapsed += 0.5
+
+        if elapsed >= timeout_seconds:
+            ib.cancelOrder(trade.order)
+            raise TimeoutError(
+                f"Order did not fill within {timeout_seconds} seconds"
+            )
 
     if trade.orderStatus.status != "Filled":
         raise RuntimeError(
@@ -42,7 +51,7 @@ def wait_for_fill(ib, trade):
             f"{trade.orderStatus.status}"
         )
 
-    return trade.orderStatus.avgFillPrice
+    return float(trade.orderStatus.avgFillPrice)
 
 # opens/closes a position and waits for it to actually be filled
 def execute_pair(
