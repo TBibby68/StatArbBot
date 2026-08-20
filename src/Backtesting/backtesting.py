@@ -355,6 +355,7 @@ def run_backtest(
         if tradeable_pairs is None:
             print("no cointegrated pair found for this window, moving to the next window")
 
+            current_stock_pair = None
             window_id += 1
             trading_window_end += trading_window_size
             current_minute += trading_window_size
@@ -364,6 +365,8 @@ def run_backtest(
         pair_windows = []
 
         stock_pairs = tradeable_pairs[["stock1", "stock2"]].values.tolist()
+
+        current_stock_pair = stock_pairs[0]
 
         # prepare the data for each pair we might want to trade on this window
         for pair in stock_pairs:

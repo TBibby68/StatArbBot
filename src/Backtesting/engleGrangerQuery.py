@@ -10,7 +10,19 @@ def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
     cointegration_result = None # this will stay as None if either the current pair is no longer cointegrated, or there isn't any cointegrated pair
     # pull the cointegration results from the database 
 
-    if not bconfig.trade_multiple_pairs:
+    if bconfig.trade_multiple_pairs:
+ 
+        query = '''
+        SELECT stock1, stock2, p_value
+        FROM cointegration_results
+        WHERE window_id = %s
+        AND p_value < %s
+        AND stock1 <> 'minute'
+        AND stock2 <> 'minute'
+        ORDER BY p_value ASC
+        '''
+        params = (current_window_id, bconfig.eg_sig_level)
+    else:
         if current_stock_pair != None:
             query = '''
             SELECT stock1, stock2, p_value 
@@ -21,6 +33,7 @@ def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
             AND stock2 <> 'minute'
             '''
             params = (current_window_id, bconfig.eg_sig_level, current_stock_pair[0], current_stock_pair[1])
+
         else:
             query = '''
             SELECT stock1, stock2, p_value
@@ -32,17 +45,6 @@ def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
             LIMIT 1
             '''
             params = (current_window_id, bconfig.eg_sig_level)
-    else:
-        query = '''
-        SELECT stock1, stock2, p_value
-        FROM cointegration_results
-        WHERE window_id = %s
-        AND p_value < %s
-        AND stock1 <> 'minute'
-        AND stock2 <> 'minute'
-        ORDER BY p_value ASC
-        '''
-        params = (current_window_id, bconfig.eg_sig_level)
 
     cointegration_result = pd.read_sql(query, con=engine,params=params)
 
