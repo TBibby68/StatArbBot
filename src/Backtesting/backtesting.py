@@ -32,6 +32,42 @@ def hedge_ratio(stock1_prices, stock2_prices):
 
     return ratio
 
+def calculate_exposure(
+    open_trade,
+    current_price_1,
+    current_price_2,
+):
+    exposure_1 = (
+        open_trade.position_size_1
+        * current_price_1
+    )
+
+    exposure_2 = (
+        open_trade.position_size_2
+        * current_price_2
+    )
+
+    gross_exposure = (
+        abs(exposure_1)
+        + abs(exposure_2)
+    )
+
+    long_exposure = (
+        max(exposure_1, 0)
+        + max(exposure_2, 0)
+    )
+
+    short_exposure = (
+        abs(min(exposure_1, 0))
+        + abs(min(exposure_2, 0))
+    )
+
+    return (
+        gross_exposure,
+        long_exposure,
+        short_exposure,
+    )
+
 def simulate_close_trade(
         stock1_price, 
         stock2_price, 
@@ -472,6 +508,14 @@ def run_backtest(
                         current_price_2=stock2_price
                     )
 
+                    gross_exposure, long_exposure, short_exposure = (
+                        calculate_exposure(
+                            open_trade=open_trade,
+                            current_price_1=stock1_price,
+                            current_price_2=stock2_price,
+                        )
+                    )
+
                 if signal == "CLOSE":
                     assert open_trade is not None, (
                         f"CLOSE signal with no open trade. Window={window_id}"
@@ -519,6 +563,14 @@ def run_backtest(
                         current_price_2=stock2_price
                     )
 
+                    gross_exposure, long_exposure, short_exposure = (
+                        calculate_exposure(
+                            open_trade=open_trade,
+                            current_price_1=stock1_price,
+                            current_price_2=stock2_price,
+                        )
+                    )
+
                     # add it to the list of mtm records - only persist if the trade remains open
                     mark_to_market_records.append({
                         "minute": current_minute,
@@ -527,6 +579,9 @@ def run_backtest(
                         "stock2": window.stock2,
                         "entry_timestamp": open_trade.entry_timestamp,
                         "unrealised_pnl": unrealised_pnl,
+                        "gross_exposure": gross_exposure,
+                        "long_exposure": long_exposure,
+                        "short_exposure": short_exposure,
                     })
 
         # increment the window and time

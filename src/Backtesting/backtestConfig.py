@@ -106,7 +106,7 @@ class BacktestConfig:
 
     force_close_at_window_end = True
 
-    trade_multiple_pairs = False
+    trade_multiple_pairs = True
 
     max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
 
