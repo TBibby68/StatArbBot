@@ -39,7 +39,9 @@ def simulate_close_trade(
         closed_trades, 
         open_trade, 
         is_force_closure, 
-        zscore: float | None): # this will be None for forced closures as they are so rare
+        zscore: float | None, # this will be None for forced closures as they are so rare
+        stock1_age,
+        stock2_age): 
     
     config = backtestConfig.BacktestConfig
 
@@ -108,7 +110,9 @@ def simulate_close_trade(
             gross_pnl = pnl_total,
             gross_pnl_slipped = pnl_total_Slipped,
             transaction_costs = transaction_costs,
-            net_pnl = pnl_total_Slipped - transaction_costs
+            net_pnl = pnl_total_Slipped - transaction_costs,
+            exit_price_age_1 = stock1_age,
+            exit_price_age_2 = stock2_age
             ))
 
 def simulate_open_trade(
@@ -174,7 +178,9 @@ def find_new_pair_and_force_close(
         stock2_price, 
         current_minute, 
         open_trade, 
-        completed_trades):
+        completed_trades,
+        stock1_age,
+        stock2_age):
 
     # find the new pair to trade on and print information to terminal
     tradeable_pairs = find_tradeable_pairs(window_id, engine)
@@ -205,7 +211,9 @@ def find_new_pair_and_force_close(
             closed_trades=completed_trades, 
             open_trade=open_trade, 
             is_force_closure=True, 
-            zscore=None)
+            zscore=None,
+            stock1_age=stock1_age,
+            stock2_age=stock2_age)
 
     # return the current best pair and None: the current open trade is always going to be None after we close
     return tradeable_pairs, None
@@ -219,7 +227,9 @@ def Calculate_Cointegrated_Pair(
         stock2_price: float | None, 
         current_minute, 
         open_trade, 
-        completed_trades):
+        completed_trades,
+        stock1_age,
+        stock2_age):
 
     # if we don't have a pair currently, find a pair and print the results to the terminal
     if current_stock_pair == ["", ""]:
@@ -239,7 +249,9 @@ def Calculate_Cointegrated_Pair(
                 stock2_price, 
                 current_minute=current_minute, 
                 open_trade=open_trade, 
-                completed_trades=completed_trades)
+                completed_trades=completed_trades,
+                stock1_age=stock1_age,
+                stock2_age=stock2_age)
         else:
             # this will run if the last window's pair is the same as the current pair. 
             print("this is the current p_value: ", str(tradeable_pairs["p_value"][0]))
@@ -248,6 +260,21 @@ def Calculate_Cointegrated_Pair(
     # 1) continue trading the same pair as the last window, and 
     # 2) carry over an open position across from one window to the next
     return tradeable_pairs, open_trade
+
+def calculate_unrealised_pnl(
+    open_trade,
+    current_price_1,
+    current_price_2
+):
+    pnl_1 = (
+        current_price_1 - open_trade.entry_price_1
+    ) * open_trade.position_size_1
+
+    pnl_2 = (
+        current_price_2 - open_trade.entry_price_2
+    ) * open_trade.position_size_2
+
+    return pnl_1 + pnl_2
 
 def Prepare_Trading_Window(
         tradeable_pair, 
@@ -285,7 +312,8 @@ def Prepare_Trading_Window(
             trading_window_end,
             inclusive="right",
         ),
-        [stock1, stock2, "minute", "timestamp"],
+        [stock1, stock2, "minute", "timestamp",  f"{stock1}_last_update",
+        f"{stock2}_last_update",],
     ].copy()
 
     # Calculate canonical log spread
@@ -314,6 +342,7 @@ def run_backtest(
     window_id = 0
     current_stock_pair = ["", ""]
     open_trade = None
+    mark_to_market_records = [] # list of dicts where each is indexed by the minute
 
     spread_volatility_window = pd.DataFrame(columns=[
         "window_id",
@@ -349,7 +378,9 @@ def run_backtest(
             stock2_price=stock2_price, 
             current_minute=current_minute, # current_minute == trading_window_end - trading_window_size should always be true here !
             open_trade=open_trade, 
-            completed_trades=completed_trades)
+            completed_trades=completed_trades,
+            stock1_age=0, # NOTE: these are hardcoded because we effectively never need to force close positions so we dont need to track the age of the prices
+            stock2_age=0)
 
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if tradeable_pairs is None:
@@ -393,15 +424,34 @@ def run_backtest(
                 stock2_price = row[window.stock2]
                 current_minute = int(row["minute"])
 
+                # check whether either stock is using a stale price
+                current_timestamp = row["timestamp"]
+
+                stock1_last_update = row[f"{window.stock1}_last_update"]
+                stock2_last_update = row[f"{window.stock2}_last_update"]
+
+                stock1_age = (
+                    current_timestamp - stock1_last_update
+                ).total_seconds() / 60
+
+                stock2_age = (
+                    current_timestamp - stock2_last_update
+                ).total_seconds() / 60
+
                 # calculate the signal
                 signal, zscore = get_signal(
                     np.log(stock1_price), 
                     np.log(stock2_price), 
                     open_trade=open_trade, 
-                    beta=window.hedge_ratio)
+                    beta=window.hedge_ratio
+                    )
 
                 # simulate the trade based on the signal
-                if signal == "OPEN":
+                if (
+                    signal == "OPEN" 
+                    and stock1_age <= config.max_price_age 
+                    and stock2_age <= config.max_price_age
+                ):
                     print("Opening a position")
                     open_trade = simulate_open_trade(
                         window_id, 
@@ -412,8 +462,17 @@ def run_backtest(
                         stock1=window.stock1, 
                         stock2=window.stock2, 
                         zscore=zscore)
-                    
-                elif signal == "CLOSE":
+                                
+                unrealised_pnl = 0
+
+                if open_trade is not None:
+                    unrealised_pnl = calculate_unrealised_pnl(
+                        open_trade=open_trade,
+                        current_price_1=stock1_price,
+                        current_price_2=stock2_price
+                    )
+
+                if signal == "CLOSE":
                     assert open_trade is not None, (
                         f"CLOSE signal with no open trade. Window={window_id}"
                     )
@@ -437,18 +496,112 @@ def run_backtest(
                         closed_trades=completed_trades, 
                         open_trade=open_trade, 
                         is_force_closure=False, 
-                        zscore=zscore)
+                        zscore=zscore,
+                        stock1_age=stock1_age,
+                        stock2_age=stock2_age)
+                    
+                    realised_trade = completed_trades[-1]
                     
                     open_trade = None
+
+                    print(
+                        "CLOSE CHECK",
+                        current_minute,
+                        "unrealised:", unrealised_pnl,
+                        "realised:", realised_trade.gross_pnl
+                    )
+
+                elif open_trade is not None:
+                    # calculate mark-to-market PnL
+                    unrealised_pnl = calculate_unrealised_pnl(
+                        open_trade=open_trade,
+                        current_price_1=stock1_price,
+                        current_price_2=stock2_price
+                    )
+
+                    # add it to the list of mtm records - only persist if the trade remains open
+                    mark_to_market_records.append({
+                        "minute": current_minute,
+                        "window_id": window_id,
+                        "stock1": window.stock1,
+                        "stock2": window.stock2,
+                        "entry_timestamp": open_trade.entry_timestamp,
+                        "unrealised_pnl": unrealised_pnl,
+                    })
 
         # increment the window and time
         window_id += 1
         trading_window_end += trading_window_size
     
+    # mtm postgres 
+    mtm_df = pd.DataFrame(mark_to_market_records)
+
+    portfolio_unrealised = (
+        mtm_df
+        .groupby("minute", as_index=False)["unrealised_pnl"]
+        .sum()
+    )
+
+    portfolio_unrealised.to_sql(
+        "mtm_pnls",
+        con=engine,
+        if_exists="replace",
+        index=False,
+    )
+
     # push to postgres
     rows = [trade.to_dict() for trade in completed_trades]
 
     trades_df = pd.DataFrame(rows)
+
+    # Sum realised PnL by exit minute
+    realised_by_minute = (
+        trades_df
+        .groupby("exit_timestamp", as_index=False)["net_pnl"]
+        .sum()
+        .rename(columns={
+            "exit_timestamp": "minute",
+            "net_pnl": "realised_pnl"
+        })
+    )
+
+    # Combine realised and unrealised observations
+    portfolio_pnl = pd.merge(
+        portfolio_unrealised,
+        realised_by_minute,
+        on="minute",
+        how="outer"
+    )
+
+    # Sort chronologically
+    portfolio_pnl = portfolio_pnl.sort_values("minute")
+
+    # Missing unrealised/realised values mean zero
+    portfolio_pnl["unrealised_pnl"] = (
+        portfolio_pnl["unrealised_pnl"].fillna(0)
+    )
+
+    portfolio_pnl["realised_pnl"] = (
+        portfolio_pnl["realised_pnl"].fillna(0)
+    )
+
+    # Realised PnL persists after the trade closes
+    portfolio_pnl["cumulative_realised_pnl"] = (
+        portfolio_pnl["realised_pnl"].cumsum()
+    )
+
+    # Mark-to-market portfolio PnL
+    portfolio_pnl["total_pnl"] = (
+        portfolio_pnl["cumulative_realised_pnl"]
+        + portfolio_pnl["unrealised_pnl"]
+    )
+
+    portfolio_pnl.to_sql(
+        "portfolio_pnl",
+        con=engine,
+        if_exists="replace",
+        index=False,
+    )
 
     trades_df.to_sql(
         "completed_trades",

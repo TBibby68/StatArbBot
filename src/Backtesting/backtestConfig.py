@@ -68,6 +68,9 @@ class CompletedTrade:
     transaction_costs: float
     net_pnl: float
 
+    exit_price_age_1: int
+    exit_price_age_2: int
+
     # so we can easily inject to sql without nesting errors
     def to_dict(self):
         return {
@@ -82,6 +85,8 @@ class CompletedTrade:
             "gross_pnl_slipped": self.gross_pnl_slipped,
             "transaction_costs": self.transaction_costs,
             "net_pnl": self.net_pnl,
+            "exit_price_age_1": self.exit_price_1,
+            "exit_price_age_2": self.exit_price_2,
         }
 
 class BacktestConfig:
@@ -101,7 +106,9 @@ class BacktestConfig:
 
     force_close_at_window_end = True
 
-    trade_multiple_pairs = True
+    trade_multiple_pairs = False
+
+    max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
 
 class DataConfig:
     tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
