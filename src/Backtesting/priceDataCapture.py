@@ -37,22 +37,39 @@ for ticker in initial_stock_batch:
         # for these rows we will forward fill for now
         combined = combined.join(df, how="outer")
 
-# forward fill blank values
-combined.ffill(inplace=True)
-# Then fill backward to catch leading NaNs
-combined.bfill(inplace=True)
-# convert to log prices for cointegration testing
-combined_signal_gen_data = np.log(combined)
-
-# keep the timestamp column in here!
+# Sort first
 combined = combined.sort_index()
-combined_signal_gen_data = combined_signal_gen_data.sort_index()
-combined["timestamp"] = combined.index
-combined_signal_gen_data["timestamp"] = combined_signal_gen_data.index
 
-# add this in so we can connect it to the 2 backtesting tables
-combined_signal_gen_data['minute'] = range(len(combined_signal_gen_data))
-combined['minute'] = range(len(combined))
+# Save genuine last-update timestamps BEFORE filling prices
+stock_columns = combined.columns.tolist()
+
+for stock in stock_columns:
+    combined[f"{stock}_last_update"] = (
+        combined.index.to_series()
+        .where(combined[stock].notna())
+        .ffill()
+    )
+
+# Now fill prices
+combined[stock_columns] = combined[stock_columns].ffill()
+combined[stock_columns] = combined[stock_columns].bfill()
+
+# Create signal data from PRICE columns only
+combined_signal_gen_data = np.log(
+    combined[stock_columns]
+)
+
+# Keep timestamps
+combined["timestamp"] = combined.index
+combined_signal_gen_data["timestamp"] = (
+    combined_signal_gen_data.index
+)
+
+# Observation index
+combined["minute"] = range(len(combined))
+combined_signal_gen_data["minute"] = range(
+    len(combined_signal_gen_data)
+)
 
 # Create SQLAlchemy engine: here postgres is the default database and postgres is also the owner of this database(user field here)
 engine = create_engine(engine_string)

@@ -43,3 +43,5 @@ lower = np.percentile(bootstrap_differences, 2.5)
 upper = np.percentile(bootstrap_differences, 97.5)
 
 print(f"95% bootstrap CI: [{lower:.6f}, {upper:.6f}]")
+
+# note: likely not predictive of returns unless we look at every low VIX regimes

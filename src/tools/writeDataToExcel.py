@@ -24,7 +24,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'ibkr_minute_bars'
+            WHERE table_name = 'backtesting_data_prices'
         );
     """)).scalar()
 
@@ -34,13 +34,23 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM ibkr_minute_bars",
+            "SELECT * FROM backtesting_data_prices",
             con=engine
         )
 
-        trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
+        datetime_columns = [
+            col for col in trades_df.columns
+            if col == "timestamp" or col.endswith("_last_update")
+        ]
 
-        output_file = r"C:\Users\tbibb\Downloads\ibkr_minute_bars.xlsx"
+        for col in datetime_columns:
+            trades_df[col] = (
+                pd.to_datetime(trades_df[col], utc=True)
+                .dt.tz_localize(None)
+            )
+        #trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
+
+        output_file = r"C:\Users\tbibb\Downloads\backtesting_data_prices.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -66,4 +76,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'ibkr_minute_bars' not found.")
+        print("Table 'backtesting_data_prices' not found.")
