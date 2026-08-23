@@ -85,8 +85,8 @@ class CompletedTrade:
             "gross_pnl_slipped": self.gross_pnl_slipped,
             "transaction_costs": self.transaction_costs,
             "net_pnl": self.net_pnl,
-            "exit_price_age_1": self.exit_price_1,
-            "exit_price_age_2": self.exit_price_2,
+            "exit_price_age_1": self.exit_price_age_1,
+            "exit_price_age_2": self.exit_price_age_2,
         }
 
 class BacktestConfig:

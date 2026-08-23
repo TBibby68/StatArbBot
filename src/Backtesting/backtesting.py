@@ -1,4 +1,4 @@
-from signals import get_signal
+from signals import get_signal, reset_spread_history
 import pandas as pd
 import numpy as np
 from engleGrangerQuery import find_tradeable_pairs
@@ -397,6 +397,9 @@ def run_backtest(
 
     # While we still have [2 weeks] to trade on
     while trading_window_end + trading_window_size < len(data):
+
+        # so we dont use old data for spreads
+        reset_spread_history()
 
         print(
             f"WINDOW {window_id} | "

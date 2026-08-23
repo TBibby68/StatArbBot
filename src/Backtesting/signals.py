@@ -7,6 +7,9 @@ import backtestConfig as config
 # Holds spread history internally: makes a double ended queue, keeping the most recent 100 elements and has automatic length control
 spread_history = deque(maxlen=100)
 
+def reset_spread_history():
+    spread_history.clear()
+
 def compute_spread(price_a, price_b, beta):
     return price_a - beta * price_b
 

@@ -24,7 +24,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'backtesting_data_prices'
+            WHERE table_name = 'completed_trades'
         );
     """)).scalar()
 
@@ -34,7 +34,7 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM backtesting_data_prices",
+            "SELECT * FROM completed_trades",
             con=engine
         )
 
@@ -50,7 +50,7 @@ with engine.connect() as conn:
             )
         #trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
 
-        output_file = r"C:\Users\tbibb\Downloads\backtesting_data_prices.xlsx"
+        output_file = r"C:\Users\tbibb\Downloads\completed_trades.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -76,4 +76,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'backtesting_data_prices' not found.")
+        print("Table 'completed_trades' not found.")
