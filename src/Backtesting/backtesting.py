@@ -5,6 +5,7 @@ from engleGrangerQuery import find_tradeable_pairs
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
+from collections import deque
 
 # SECTION 1: DEFINING FUNCTIONS: generalising for multiple pairs
 
@@ -16,7 +17,7 @@ def apply_slippage(price, position_size, slippage_bps):
     else:                   # sell
         return price * (1 - slippage_rate)
 
-def hedge_ratio(stock1_prices, stock2_prices):
+def compute_hedge_ratio(stock1_prices, stock2_prices):
     """Compute the hedge ratio between 2 time series(stock prices).
         
         Args: 
@@ -258,7 +259,6 @@ def find_new_pair_and_force_close(
 def Calculate_Cointegrated_Pair(
         window_id, 
         engine, 
-        current_stock_pair, 
         stock1_price: float | None, 
         stock2_price: float | None, 
         current_minute, 
@@ -268,12 +268,12 @@ def Calculate_Cointegrated_Pair(
         stock2_age):
 
     # if we don't have a pair currently, find a pair and print the results to the terminal
-    if current_stock_pair == ["", ""]:
+    if open_trade is None:
         tradeable_pairs = find_tradeable_pairs(window_id, engine)
         print("this is the current p_value: ", str(tradeable_pairs["p_value"][0]))
     else: 
         # if we have a current pair, test if the relationship still exists
-        tradeable_pairs = find_tradeable_pairs(window_id, engine, current_stock_pair)
+        tradeable_pairs = find_tradeable_pairs(window_id, engine, open_trade)
         
         # close current position if the relationship break down, and find a new pair to trade on
         # this will never run if we have mutliple pairs - simpler!
@@ -318,7 +318,8 @@ def Prepare_Trading_Window(
         cointegration_window_size, 
         trading_window_end,
         data,
-        hedge_ratio):
+        calculate_hedge_ratio,
+        p_value,):
     # prepare the data for trading on a given pair
 
     # parse the df
@@ -336,7 +337,7 @@ def Prepare_Trading_Window(
     ].copy()
 
     # calculate a static hedge ratio for the trading period (eg 2 weeks)
-    hedge_ratio = hedge_ratio(
+    hedge_ratio = calculate_hedge_ratio(
         np.log(cointegration_df[stock1]),
         np.log(cointegration_df[stock2]),
     )
@@ -358,7 +359,20 @@ def Prepare_Trading_Window(
         - hedge_ratio * np.log(current_window_stocks_df[stock2])
     )
 
-    return backtestConfig.TradingPairWindow(stock1, stock2, hedge_ratio, current_window_stocks_df)
+    return backtestConfig.TradingPairWindow(
+        stock1, 
+        stock2, 
+        hedge_ratio, 
+        p_value,
+        current_window_stocks_df,
+        )
+
+# baseline - choose the candidate that has the lowest cointegration score
+def choose_pair(candidate_signals):
+    return min(
+        candidate_signals,
+        key=lambda x: x["p_value"]
+    )
 
 # SECTION 2: backtest function:
 
@@ -376,9 +390,11 @@ def run_backtest(
     stock1_price = None
     stock2_price = None
     window_id = 0
-    current_stock_pair = ["", ""]
     open_trade = None
     mark_to_market_records = [] # list of dicts where each is indexed by the minute
+    
+    # stocks we are currently trading on
+    stock_universe = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF", ]
 
     spread_volatility_window = pd.DataFrame(columns=[
         "window_id",
@@ -409,7 +425,6 @@ def run_backtest(
         tradeable_pairs, open_trade = Calculate_Cointegrated_Pair(
             window_id=window_id, 
             engine=engine, 
-            current_stock_pair=current_stock_pair, 
             stock1_price=stock1_price, 
             stock2_price=stock2_price, 
             current_minute=current_minute, # current_minute == trading_window_end - trading_window_size should always be true here !
@@ -421,8 +436,7 @@ def run_backtest(
         # this window has no cointegrated pair, so we will move to the next window and try again.
         if tradeable_pairs is None:
             print("no cointegrated pair found for this window, moving to the next window")
-
-            current_stock_pair = None
+            open_trade = None
             window_id += 1
             trading_window_end += trading_window_size
             current_minute += trading_window_size
@@ -431,40 +445,83 @@ def run_backtest(
         # list of all the trade info for each eligable pair for this window
         pair_windows = []
 
-        stock_pairs = tradeable_pairs[["stock1", "stock2"]].values.tolist()
-
-        current_stock_pair = stock_pairs[0]
-
         # prepare the data for each pair we might want to trade on this window
-        for pair in stock_pairs:
-            pair_windows.append(Prepare_Trading_Window(pair, 
-                                                       current_minute, 
-                                                       cointegration_window_size, 
-                                                       trading_window_end,
-                                                       data,
-                                                       hedge_ratio))
+        for _, pair_row in tradeable_pairs.iterrows():
+
+            pair = [
+                pair_row["stock1"],
+                pair_row["stock2"],
+            ]
+
+            p_value = pair_row["p_value"]
+
+            pair_windows.append(
+                Prepare_Trading_Window(
+                    pair,
+                    current_minute,
+                    cointegration_window_size,
+                    trading_window_end,
+                    data,
+                    compute_hedge_ratio,
+                    p_value,
+                )
+            )
 
         # NOTE: "current_minute" at this point should still be the start of the trading window
 
-        # calculate the signal for all eligable pairs:
-        for window in pair_windows:
+        # need to get the entire universe of stock prices here
 
-            # reset the open trade for this pair
-            open_trade = None
+        current_window_universe_df = data.loc[
+            data["minute"].between(
+                current_minute,
+                trading_window_end,
+                inclusive="right",
+            )
+        ].copy()
 
-            # simulate trading on the current window - this df is a df that contains only the current pair
-            for _,row in window.trading_df.iterrows():
+        current_window_universe_df = current_window_universe_df[
+            [
+                *stock_universe,
+                "minute",
+                "timestamp",
+                *[
+                    f"{stock}_last_update"
+                    for stock in stock_universe
+                ],
+            ]
+        ]
 
-                # get the current prices and time
-                stock1_price = row[window.stock1]
-                stock2_price = row[window.stock2]
-                current_minute = int(row["minute"])
+        # iterate over the window for all pairs
+        for _, row in current_window_universe_df.iterrows():
 
-                # check whether either stock is using a stale price
-                current_timestamp = row["timestamp"]
+            current_minute = int(row["minute"])
 
-                stock1_last_update = row[f"{window.stock1}_last_update"]
-                stock2_last_update = row[f"{window.stock2}_last_update"]
+            # check whether either stock is using a stale price
+            current_timestamp = row["timestamp"]
+
+            # list of the signals for all tradeable pairs.
+            candidate_signals = []
+
+            # signals and zscores keyed by the pair
+            pair_signals = {}
+
+            # Defaults for this minute
+            open_signal = None
+            open_zscore = None
+
+            # calculate the signal on every eligeable pair
+            for window in pair_windows:
+
+                # get the current stocks:
+                stock1 = window.stock1
+                stock2 = window.stock2
+
+                # get the current prices for this pair
+                stock1_price = row[stock1]
+                stock2_price = row[stock2]
+
+                stock1_last_update = row[f"{stock1}_last_update"]
+                stock2_last_update = row[f"{stock2}_last_update"]
 
                 stock1_age = (
                     current_timestamp - stock1_last_update
@@ -474,115 +531,171 @@ def run_backtest(
                     current_timestamp - stock2_last_update
                 ).total_seconds() / 60
 
-                # calculate the signal
+                # This pair should only see the open trade if
+                # THIS is actually the pair currently being held
+                pair_open_trade = None
+
+                if (
+                    open_trade is not None
+                    and open_trade.stock1 == stock1
+                    and open_trade.stock2 == stock2
+                ):
+                    pair_open_trade = open_trade
+
+                pair_key = (stock1, stock2)
+
+                # calculate the signal: using the hedge ratio for this pair
                 signal, zscore = get_signal(
+                    pair_key,
                     np.log(stock1_price), 
                     np.log(stock2_price), 
-                    open_trade=open_trade, 
+                    open_trade=pair_open_trade, 
                     beta=window.hedge_ratio
                     )
+                
+                # Save this pair's current signal state
+                pair_signals[(stock1, stock2)] = {
+                    "signal": signal,
+                    "zscore": zscore,
+                    "window": window,
+                }
 
-                # simulate the trade based on the signal
+                # if it is showing a signal to trade, then add it to the list:
                 if (
                     signal == "OPEN" 
+                    and open_trade is None
                     and stock1_age <= config.max_price_age 
                     and stock2_age <= config.max_price_age
                 ):
-                    print("Opening a position")
-                    open_trade = simulate_open_trade(
-                        window_id, 
-                        stock1_price, 
-                        stock2_price, 
-                        hedge_ratio=window.hedge_ratio, 
-                        current_minute=current_minute, 
-                        stock1=window.stock1, 
-                        stock2=window.stock2, 
-                        zscore=zscore)
-                                
-                unrealised_pnl = 0
-
-                if open_trade is not None:
-                    unrealised_pnl = calculate_unrealised_pnl(
-                        open_trade=open_trade,
-                        current_price_1=stock1_price,
-                        current_price_2=stock2_price
-                    )
-
-                    gross_exposure, long_exposure, short_exposure = (
-                        calculate_exposure(
-                            open_trade=open_trade,
-                            current_price_1=stock1_price,
-                            current_price_2=stock2_price,
-                        )
-                    )
-
-                if signal == "CLOSE":
-                    assert open_trade is not None, (
-                        f"CLOSE signal with no open trade. Window={window_id}"
-                    )
-
-                    assert current_minute >= open_trade.entry_timestamp, (
-                        f"TIME TRAVEL!\n"
-                        f"Window={window_id}\n"
-                        f"entry_window={open_trade.window_id}, "
-                        f"Entry={open_trade.entry_timestamp}\n"
-                        f"Exit/current={current_minute}\n"
-                        f"Entry z={open_trade.entry_zscore}\n"
-                        f"Exit z={zscore}"
-                    )    
-
-                    print("closing a position")
-
-                    simulate_close_trade(
-                        stock1_price, 
-                        stock2_price, 
-                        current_minute=current_minute, 
-                        closed_trades=completed_trades, 
-                        open_trade=open_trade, 
-                        is_force_closure=False, 
-                        zscore=zscore,
-                        stock1_age=stock1_age,
-                        stock2_age=stock2_age)
-                    
-                    realised_trade = completed_trades[-1]
-                    
-                    open_trade = None
-
-                    print(
-                        "CLOSE CHECK",
-                        current_minute,
-                        "unrealised:", unrealised_pnl,
-                        "realised:", realised_trade.gross_pnl
-                    )
-
-                elif open_trade is not None:
-                    # calculate mark-to-market PnL
-                    unrealised_pnl = calculate_unrealised_pnl(
-                        open_trade=open_trade,
-                        current_price_1=stock1_price,
-                        current_price_2=stock2_price
-                    )
-
-                    gross_exposure, long_exposure, short_exposure = (
-                        calculate_exposure(
-                            open_trade=open_trade,
-                            current_price_1=stock1_price,
-                            current_price_2=stock2_price,
-                        )
-                    )
-
-                    # add it to the list of mtm records - only persist if the trade remains open
-                    mark_to_market_records.append({
-                        "minute": current_minute,
-                        "window_id": window_id,
-                        "stock1": window.stock1,
-                        "stock2": window.stock2,
-                        "entry_timestamp": open_trade.entry_timestamp,
-                        "unrealised_pnl": unrealised_pnl,
-                        "gross_exposure": gross_exposure,
-                        "long_exposure": long_exposure,
-                        "short_exposure": short_exposure,
+                    candidate_signals.append({
+                        "window": window,
+                        "zscore": zscore,
+                        "p_value": window.p_value,
+                        "stock1_price": stock1_price,
+                        "stock2_price": stock2_price,
                     })
+
+                # end the pair selection here ----------------
+
+            # open a position on the "best" pair that is currently showing a signal
+            if open_trade is None and candidate_signals:
+
+                chosen = choose_pair(candidate_signals)
+
+                print(f"opening a position on {chosen}")
+                open_trade = simulate_open_trade(
+                    window_id=window_id,
+                    stock1_price=chosen["stock1_price"],
+                    stock2_price=chosen["stock2_price"],
+                    hedge_ratio=chosen["window"].hedge_ratio,
+                    current_minute=current_minute,
+                    stock1=chosen["window"].stock1,
+                    stock2=chosen["window"].stock2,
+                    zscore=chosen["zscore"],
+                )
+
+            # close and MTM tracking logic:
+
+            unrealised_pnl = 0
+
+            if open_trade is not None:
+
+                open_pair_signal = pair_signals[
+                    (open_trade.stock1, open_trade.stock2)
+                ]
+
+                open_signal = open_pair_signal["signal"]
+                open_zscore = open_pair_signal["zscore"]
+
+                # get the price for the stock pair we are actually currently trading:
+                open_stock1_price = row[open_trade.stock1]
+                open_stock2_price = row[open_trade.stock2]
+
+                # get the age for both stocks that we are actually trading on:
+                open_stock1_age = (
+                    current_timestamp
+                    - row[f"{open_trade.stock1}_last_update"]
+                ).total_seconds() / 60
+
+                open_stock2_age = (
+                    current_timestamp
+                    - row[f"{open_trade.stock2}_last_update"]
+                ).total_seconds() / 60
+
+                unrealised_pnl = calculate_unrealised_pnl(
+                    open_trade=open_trade,
+                    current_price_1=open_stock1_price,
+                    current_price_2=open_stock2_price
+                )
+
+                gross_exposure, long_exposure, short_exposure = (
+                    calculate_exposure(
+                        open_trade=open_trade,
+                        current_price_1=open_stock1_price,
+                        current_price_2=open_stock2_price,
+                    )
+                )
+
+            if open_signal == "CLOSE":
+                assert open_trade is not None, (
+                    f"CLOSE signal with no open trade. Window={window_id}"
+                )
+
+                assert current_minute >= open_trade.entry_timestamp, (
+                    f"TIME TRAVEL!\n"
+                    f"Window={window_id}\n"
+                    f"entry_window={open_trade.window_id}, "
+                    f"Entry={open_trade.entry_timestamp}\n"
+                    f"Exit/current={current_minute}\n"
+                    f"Entry z={open_trade.entry_zscore}\n"
+                    f"Exit z={zscore}"
+                )
+
+                print("closing a position")
+
+                simulate_close_trade(
+                    open_stock1_price, 
+                    open_stock2_price, 
+                    current_minute=current_minute, 
+                    closed_trades=completed_trades, 
+                    open_trade=open_trade, 
+                    is_force_closure=False, 
+                    zscore=open_zscore, # this needs to be the zscore of the currently open position not just the last one we calculated
+                    stock1_age=open_stock1_age,
+                    stock2_age=open_stock2_age)
+                
+                realised_trade = completed_trades[-1]
+                
+                open_trade = None
+
+            elif open_trade is not None:
+                # calculate mark-to-market PnL
+                unrealised_pnl = calculate_unrealised_pnl(
+                    open_trade=open_trade,
+                    current_price_1=open_stock1_price,
+                    current_price_2=open_stock2_price
+                )
+
+                gross_exposure, long_exposure, short_exposure = (
+                    calculate_exposure(
+                        open_trade=open_trade,
+                        current_price_1=open_stock1_price,
+                        current_price_2=open_stock2_price,
+                    )
+                )
+
+                # add it to the list of mtm records - only persist if the trade remains open
+                mark_to_market_records.append({
+                    "minute": current_minute,
+                    "window_id": window_id,
+                    "stock1": open_trade.stock1,
+                    "stock2": open_trade.stock2,
+                    "entry_timestamp": open_trade.entry_timestamp,
+                    "unrealised_pnl": unrealised_pnl,
+                    "gross_exposure": gross_exposure,
+                    "long_exposure": long_exposure,
+                    "short_exposure": short_exposure,
+                })
 
         # increment the window and time
         window_id += 1

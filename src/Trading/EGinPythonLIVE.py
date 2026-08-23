@@ -1,8 +1,6 @@
-from StatArbBot.config import API_KEY, API_SECRET, BASE_URL, stream_url, crypto_stream_url, CRYPTO_API_KEY, CRYPTO_SECRET
-import numpy as np
-from Backtesting.signals import get_signal # to get the trading signals
+from StatArbBot.config import API_KEY, API_SECRET, BASE_URL
 from alpaca_trade_api.rest import REST, TimeFrame
-from datetime import datetime, timedelta
+from datetime import timedelta
 import pandas as pd
 from statsmodels.tsa.stattools import coint
 import itertools

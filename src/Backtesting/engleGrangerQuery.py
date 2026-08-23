@@ -4,7 +4,7 @@ import backtestConfig as config
 
 # this takes the current window id, sql engine, and the current stock pair as inputs and either returns None if the current pair is 
 # not cointegrated over the window, or the pair if they are. If no pair is provided then it just queries the whole table
-def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
+def find_tradeable_pairs(current_window_id, engine, open_trade = None):
 
     bconfig = config.BacktestConfig
     cointegration_result = None # this will stay as None if either the current pair is no longer cointegrated, or there isn't any cointegrated pair
@@ -23,7 +23,7 @@ def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
         '''
         params = (current_window_id, bconfig.eg_sig_level)
     else:
-        if current_stock_pair != None:
+        if open_trade != None:
             query = '''
             SELECT stock1, stock2, p_value 
             FROM cointegration_results 
@@ -32,7 +32,7 @@ def find_tradeable_pairs(current_window_id, engine, current_stock_pair = None):
             AND stock1 <> 'minute'
             AND stock2 <> 'minute'
             '''
-            params = (current_window_id, bconfig.eg_sig_level, current_stock_pair[0], current_stock_pair[1])
+            params = (current_window_id, bconfig.eg_sig_level, open_trade.stock1, open_trade.stock2)
 
         else:
             query = '''

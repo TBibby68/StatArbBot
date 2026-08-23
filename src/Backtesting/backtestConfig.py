@@ -24,6 +24,7 @@ class TradingPairWindow:
     stock1: str
     stock2: str
     hedge_ratio: float
+    p_value: float
     trading_df: pd.DataFrame
 
 @dataclass
@@ -85,8 +86,8 @@ class CompletedTrade:
             "gross_pnl_slipped": self.gross_pnl_slipped,
             "transaction_costs": self.transaction_costs,
             "net_pnl": self.net_pnl,
-            "exit_price_age_1": self.exit_price_1,
-            "exit_price_age_2": self.exit_price_2,
+            "exit_price_age_1": self.exit_price_age_1,
+            "exit_price_age_2": self.exit_price_age_2,
         }
 
 class BacktestConfig:
@@ -109,6 +110,7 @@ class BacktestConfig:
     trade_multiple_pairs = True
 
     max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
+    max_concurrent_positions = 999 # pretty much just for debugging purposes
 
 class DataConfig:
     tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
