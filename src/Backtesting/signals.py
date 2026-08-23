@@ -9,6 +9,10 @@ spread_histories = defaultdict(
     lambda: deque(maxlen=config.BacktestConfig.zscore_window_size)
 )
 
+# need this so we dont use stale spread histories from when the hedge ratio was different
+def reset_spread_histories():
+    spread_histories.clear()
+
 def compute_spread(price_a, price_b, beta):
     return price_a - beta * price_b
 

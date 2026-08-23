@@ -1,11 +1,10 @@
-from signals import get_signal
+from signals import get_signal, reset_spread_histories
 import pandas as pd
 import numpy as np
 from engleGrangerQuery import find_tradeable_pairs
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
-from collections import deque
 
 # SECTION 1: DEFINING FUNCTIONS: generalising for multiple pairs
 
@@ -413,6 +412,9 @@ def run_backtest(
 
     # While we still have [2 weeks] to trade on
     while trading_window_end + trading_window_size < len(data):
+
+        # reset so old spreads dont carry over to the next window and produce artificially inflated z scores!
+        reset_spread_histories()
 
         print(
             f"WINDOW {window_id} | "
