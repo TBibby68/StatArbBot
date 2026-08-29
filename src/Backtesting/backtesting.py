@@ -5,6 +5,8 @@ from engleGrangerQuery import find_tradeable_pairs
 from sqlalchemy import create_engine
 from StatArbBot.config import engine_string
 import backtestConfig
+from cfd_modelling import calculate_cfd_costs
+
 
 # SECTION 1: DEFINING FUNCTIONS: generalising for multiple pairs
 
@@ -71,7 +73,8 @@ def calculate_exposure(
 def simulate_close_trade(
         stock1_price, 
         stock2_price, 
-        current_minute, 
+        current_minute,
+        current_datetime,
         closed_trades, 
         open_trade, 
         is_force_closure, 
@@ -116,6 +119,16 @@ def simulate_close_trade(
 
     pnl_total_Slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
 
+    # estimate the cfd financing costs (not including the spreads because the slippage model already does that):
+    cfd_costs = calculate_cfd_costs(
+        open_trade=open_trade
+    )
+
+    cfd_net_pnl = (
+        pnl_total_Slipped
+        - cfd_costs.total_cost
+    )
+
     # estimate transaction costs for each stock and leg 
     cost_rate = config.transaction_cost_bps / 10000
 
@@ -137,8 +150,9 @@ def simulate_close_trade(
     closed_trades.append(
         backtestConfig.CompletedTrade(
             OpenLeg = open_trade,
-            holding_minutes = current_minute - open_trade.entry_timestamp,
-            exit_timestamp = current_minute,
+            holding_minutes = current_datetime - open_trade.entry_timestamp,
+            exit_minute = current_minute,
+            exit_timestamp = current_datetime,
             exit_reason = backtestConfig.TradeCloseMethod.FORCED if is_force_closure else backtestConfig.TradeCloseMethod.SIGNAL,
             exit_price_1 = stock1_price,
             exit_price_2 = stock2_price,
@@ -146,7 +160,8 @@ def simulate_close_trade(
             gross_pnl = pnl_total,
             gross_pnl_slipped = pnl_total_Slipped,
             transaction_costs = transaction_costs,
-            net_pnl = pnl_total_Slipped - transaction_costs,
+            cfd_financing = cfd_costs.total_cost,
+            net_pnl = cfd_net_pnl - transaction_costs,
             exit_price_age_1 = stock1_age,
             exit_price_age_2 = stock2_age
             ))
@@ -157,6 +172,7 @@ def simulate_open_trade(
         stock2_price, 
         hedge_ratio, 
         current_minute, 
+        current_timestamp,
         stock1, 
         stock2, 
         zscore):
@@ -194,7 +210,8 @@ def simulate_open_trade(
         window_id = window_id, 
         stock1 = stock1, 
         stock2 = stock2, 
-        entry_timestamp = current_minute, 
+        entry_minute = current_minute, 
+        entry_timestamp = current_timestamp,
         entry_price_1 = stock1_price, 
         entry_price_2 = stock2_price, 
         entry_price_1_slipped = entry_price_1_slipped, 
@@ -213,6 +230,7 @@ def find_new_pair_and_force_close(
         stock1_price, 
         stock2_price, 
         current_minute, 
+        current_datetime,
         open_trade, 
         completed_trades,
         stock1_age,
@@ -231,7 +249,7 @@ def find_new_pair_and_force_close(
             f"CLOSE signal with no open trade. Window={window_id}"
         )
 
-        assert current_minute >= open_trade.entry_timestamp, (
+        assert current_minute >= open_trade.entry_minute, (
             f"TIME TRAVEL!\n"
             f"Window={window_id}\n"
             f"entry_window={open_trade.window_id}, "
@@ -244,6 +262,7 @@ def find_new_pair_and_force_close(
             stock1_price=stock1_price, 
             stock2_price=stock2_price, 
             current_minute=current_minute, 
+            current_datetime=current_datetime,
             closed_trades=completed_trades, 
             open_trade=open_trade, 
             is_force_closure=True, 
@@ -261,6 +280,7 @@ def Calculate_Cointegrated_Pair(
         stock1_price: float | None, 
         stock2_price: float | None, 
         current_minute, 
+        current_datetime,
         open_trade, 
         completed_trades,
         stock1_age,
@@ -283,6 +303,7 @@ def Calculate_Cointegrated_Pair(
                 stock1_price, 
                 stock2_price, 
                 current_minute=current_minute, 
+                current_datetime=current_datetime,
                 open_trade=open_trade, 
                 completed_trades=completed_trades,
                 stock1_age=stock1_age,
@@ -409,6 +430,7 @@ def run_backtest(
     cointegration_window_size = config.cointegration_window_size
     trading_window_end = cointegration_window_size + trading_window_size
     current_minute = trading_window_end - trading_window_size
+    current_timestamp = pd.Timestamp("2025-08-04 14:30:00+01:00") # need to ensure that we don't forget to change this if we change the time range?
 
     # While we still have [2 weeks] to trade on
     while trading_window_end + trading_window_size < len(data):
@@ -420,7 +442,7 @@ def run_backtest(
             f"WINDOW {window_id} | "
             f"start={trading_window_end - trading_window_size} | "
             f"open_trade_entry="
-            f"{None if open_trade is None else open_trade.entry_timestamp}"
+            f"{None if open_trade is None else open_trade.entry_minute}"
         )
 
         # test for what the best pair to trade on for this window is, and if there is a position still open on a pair that is no longer cointegrated for the current window, we close that position out, and update the current pair to trade on.
@@ -430,6 +452,7 @@ def run_backtest(
             stock1_price=stock1_price, 
             stock2_price=stock2_price, 
             current_minute=current_minute, # current_minute == trading_window_end - trading_window_size should always be true here !
+            current_datetime=current_timestamp,
             open_trade=open_trade, 
             completed_trades=completed_trades,
             stock1_age=0, # NOTE: these are hardcoded because we effectively never need to force close positions so we dont need to track the age of the prices
@@ -441,6 +464,7 @@ def run_backtest(
             open_trade = None
             window_id += 1
             trading_window_end += trading_window_size
+            # dont need to advance the current timestamp because the DF is calculated based on this variable anyway later
             current_minute += trading_window_size
             continue
 
@@ -469,9 +493,8 @@ def run_backtest(
                 )
             )
 
-        # NOTE: "current_minute" at this point should still be the start of the trading window
-
-        # need to get the entire universe of stock prices here
+        # NOTE: "current_minute" at this point should still be the start of the trading window: but also note that we define the trading window in terms of the data observations we have available, 
+        # not on actual time!
 
         current_window_universe_df = data.loc[
             data["minute"].between(
@@ -499,7 +522,7 @@ def run_backtest(
             current_minute = int(row["minute"])
 
             # check whether either stock is using a stale price
-            current_timestamp = row["timestamp"]
+            current_timestamp = row["timestamp"] # this should really be used everywhere?
 
             # list of the signals for all tradeable pairs.
             candidate_signals = []
@@ -591,6 +614,7 @@ def run_backtest(
                     stock2_price=chosen["stock2_price"],
                     hedge_ratio=chosen["window"].hedge_ratio,
                     current_minute=current_minute,
+                    current_timestamp=current_timestamp,
                     stock1=chosen["window"].stock1,
                     stock2=chosen["window"].stock2,
                     zscore=chosen["zscore"],
@@ -643,11 +667,11 @@ def run_backtest(
                     f"CLOSE signal with no open trade. Window={window_id}"
                 )
 
-                assert current_minute >= open_trade.entry_timestamp, (
+                assert current_minute >= open_trade.entry_minute, (
                     f"TIME TRAVEL!\n"
                     f"Window={window_id}\n"
                     f"entry_window={open_trade.window_id}, "
-                    f"Entry={open_trade.entry_timestamp}\n"
+                    f"Entry={open_trade.entry_minute}\n"
                     f"Exit/current={current_minute}\n"
                     f"Entry z={open_trade.entry_zscore}\n"
                     f"Exit z={zscore}"
@@ -659,14 +683,13 @@ def run_backtest(
                     open_stock1_price, 
                     open_stock2_price, 
                     current_minute=current_minute, 
+                    current_datetime=current_timestamp,
                     closed_trades=completed_trades, 
                     open_trade=open_trade, 
                     is_force_closure=False, 
                     zscore=open_zscore, # this needs to be the zscore of the currently open position not just the last one we calculated
                     stock1_age=open_stock1_age,
                     stock2_age=open_stock2_age)
-                
-                realised_trade = completed_trades[-1]
                 
                 open_trade = None
 
@@ -688,7 +711,7 @@ def run_backtest(
 
                 # add it to the list of mtm records - only persist if the trade remains open
                 mark_to_market_records.append({
-                    "minute": current_minute,
+                    "timestamp": current_timestamp,
                     "window_id": window_id,
                     "stock1": open_trade.stock1,
                     "stock2": open_trade.stock2,
@@ -703,12 +726,12 @@ def run_backtest(
         window_id += 1
         trading_window_end += trading_window_size
     
-    # mtm postgres 
+    # mtm postgres: these need to be indexed by the actual timestamp not the integer minute!
     mtm_df = pd.DataFrame(mark_to_market_records)
 
     portfolio_unrealised = (
         mtm_df
-        .groupby("minute", as_index=False)["unrealised_pnl"]
+        .groupby("timestamp", as_index=False)["unrealised_pnl"]
         .sum()
     )
 
@@ -730,7 +753,7 @@ def run_backtest(
         .groupby("exit_timestamp", as_index=False)["net_pnl"]
         .sum()
         .rename(columns={
-            "exit_timestamp": "minute",
+            "exit_timestamp": "timestamp",
             "net_pnl": "realised_pnl"
         })
     )
@@ -739,12 +762,12 @@ def run_backtest(
     portfolio_pnl = pd.merge(
         portfolio_unrealised,
         realised_by_minute,
-        on="minute",
+        on="timestamp",
         how="outer"
     )
 
-    # Sort chronologically
-    portfolio_pnl = portfolio_pnl.sort_values("minute")
+    # Sort chronologically: this column should be entirely datetime data
+    portfolio_pnl = portfolio_pnl.sort_values("timestamp")
 
     # Missing unrealised/realised values mean zero
     portfolio_pnl["unrealised_pnl"] = (
