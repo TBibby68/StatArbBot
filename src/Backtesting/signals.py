@@ -29,13 +29,28 @@ def get_signal(pair_key, price_a, price_b, open_trade, beta=1.0):
     pair_history.append(spread) 
 
     zscore_series = pd.Series(pair_history)
-    z = compute_zscore(zscore_series).iloc[-1]
+    current_z = compute_zscore(zscore_series).iloc[-1]
 
-    # threshold logic: TODO: make this configurable for the experiments
-    if abs(z) > config.BacktestConfig.entry_threshold and open_trade is None:
-        return "OPEN", z
-    elif abs(z) < config.BacktestConfig.exit_threshold and open_trade is not None:
-        return "CLOSE", z 
-    
-    # if neither of these is satisfied then we return nothing 
-    return None, z
+    previous_z = (
+        zscore_series.iloc[-2]
+        if len(zscore_series) >= 2
+        else float("nan")
+    )
+
+    # only open a position if it has only just crossed the threshold
+    crossed_entry_threshold = (
+        pd.notna(previous_z)
+        and abs(previous_z) <= config.BacktestConfig.entry_threshold
+        and abs(current_z) > config.BacktestConfig.entry_threshold
+    )
+
+    if crossed_entry_threshold and open_trade is None:
+        return "OPEN", current_z
+
+    elif (
+        abs(current_z) < config.BacktestConfig.exit_threshold
+        and open_trade is not None
+    ):
+        return "CLOSE", current_z
+
+    return None, current_z
