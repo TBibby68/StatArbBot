@@ -68,7 +68,7 @@ class CompletedTrade:
     
     gross_pnl: float
     gross_pnl_slipped : float
-    cfd_financing: float
+    cfd_costs: float
     transaction_costs: float
     net_pnl: float
 
@@ -89,7 +89,7 @@ class CompletedTrade:
             "gross_pnl": self.gross_pnl,
             "gross_pnl_slipped": self.gross_pnl_slipped,
             "transaction_costs": self.transaction_costs,
-            "cfd_financing": self.cfd_financing,
+            "cfd_financing": self.cfd_costs,
             "net_pnl": self.net_pnl,
             "exit_price_age_1": self.exit_price_age_1,
             "exit_price_age_2": self.exit_price_age_2,
@@ -117,8 +117,10 @@ class BacktestConfig:
     max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
     max_concurrent_positions = 999 # pretty much just for debugging purposes
 
+    # cfd assumptions
     cfd_commission_per_share = 0.005
     cfd_min_commission = 1.00
+    cfd_margin_rate = 0.20
 
 class DataConfig:
     tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]

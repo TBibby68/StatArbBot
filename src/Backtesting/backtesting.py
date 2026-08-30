@@ -119,7 +119,7 @@ def simulate_close_trade(
 
     pnl_total_Slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
 
-    # estimate the cfd financing costs (not including the spreads because the slippage model already does that):
+    # estimate the cfd commission costs (not including the spreads because the slippage model already does that + replacing the transaction costs):
     cfd_costs = calculate_cfd_costs(
         open_trade=open_trade
     )
@@ -128,23 +128,6 @@ def simulate_close_trade(
         pnl_total_Slipped
         - cfd_costs.total_cost
     )
-
-    # estimate transaction costs for each stock and leg 
-    cost_rate = config.transaction_cost_bps / 10000
-
-    # opening transaction cots
-    open_notional = (
-        abs(open_trade.position_size_1 * open_trade.entry_price_1_slipped)
-        + abs(open_trade.position_size_2 * open_trade.entry_price_2_slipped)
-    )
-
-    # closing transaction costs (position size is fixed)
-    close_notional = (
-        abs(open_trade.position_size_1 * open_trade.entry_price_1_slipped)
-        + abs(open_trade.position_size_2 * open_trade.entry_price_2_slipped)
-    )
-
-    transaction_costs = (open_notional + close_notional) * cost_rate
 
     # track the trade in our list
     closed_trades.append(
@@ -159,9 +142,9 @@ def simulate_close_trade(
             exit_zscore = zscore,
             gross_pnl = pnl_total,
             gross_pnl_slipped = pnl_total_Slipped,
-            transaction_costs = transaction_costs,
-            cfd_financing = cfd_costs.total_cost,
-            net_pnl = cfd_net_pnl - transaction_costs,
+            transaction_costs = 0, # just hardcoding. In the next commit make it so we can switch between cfds and cash equity models
+            cfd_costs = cfd_costs.total_cost,
+            net_pnl = cfd_net_pnl,
             exit_price_age_1 = stock1_age,
             exit_price_age_2 = stock2_age
             ))
@@ -184,13 +167,13 @@ def simulate_open_trade(
     if zscore > 0:
         # z positive: spread is too high → short A, long B
         direction = "SHORT"
-        stock1_stock = - 10 / stock1_price 
-        stock2_stock = hedge_ratio * 10 / stock2_price
+        stock1_stock = - 10000 / stock1_price 
+        stock2_stock = hedge_ratio * 10000 / stock2_price
     else:
         # z negative: spread is too low → long A, short B
         direction = "LONG"
-        stock1_stock = 10 / stock1_price
-        stock2_stock = - hedge_ratio * 10 / stock2_price 
+        stock1_stock = 10000 / stock1_price
+        stock2_stock = - hedge_ratio * 10000 / stock2_price 
 
     # estimate slippage costs on the position size
     entry_price_1_slipped = apply_slippage(
@@ -789,13 +772,6 @@ def run_backtest(
         + portfolio_pnl["unrealised_pnl"]
     )
 
-    portfolio_pnl.to_sql(
-        "portfolio_pnl",
-        con=engine,
-        if_exists="replace",
-        index=False,
-    )
-
     trades_df.to_sql(
         "completed_trades",
         con=engine,
@@ -805,6 +781,66 @@ def run_backtest(
 
     spread_volatility_window.to_sql(
         "volatility_table",
+        con=engine,
+        if_exists="replace",
+        index=False,
+    )
+
+    portfolio_state = (
+        mtm_df
+        .groupby("timestamp", as_index=False)[
+            [
+                "unrealised_pnl",
+                "gross_exposure",
+                "long_exposure",
+                "short_exposure",
+            ]
+        ]
+        .sum()
+    )
+
+    portfolio_pnl = pd.merge(
+        portfolio_state,
+        realised_by_minute,
+        on="timestamp",
+        how="outer",
+    )
+
+    fill_zero_columns = [
+        "unrealised_pnl",
+        "realised_pnl",
+        "gross_exposure",
+        "long_exposure",
+        "short_exposure",
+    ]
+
+    portfolio_pnl[fill_zero_columns] = (
+        portfolio_pnl[fill_zero_columns].fillna(0)
+    )
+
+    portfolio_pnl = portfolio_pnl.sort_values("timestamp")
+
+    portfolio_pnl["cumulative_realised_pnl"] = (
+        portfolio_pnl["realised_pnl"].cumsum()
+    )
+
+    portfolio_pnl["total_pnl"] = (
+        portfolio_pnl["cumulative_realised_pnl"]
+        + portfolio_pnl["unrealised_pnl"]
+    )
+
+    portfolio_pnl["cfd_margin_required"] = (
+        portfolio_pnl["gross_exposure"]
+        * config.cfd_margin_rate
+    )
+
+    portfolio_pnl["capital_required"] = (
+        portfolio_pnl["cfd_margin_required"]
+        - portfolio_pnl["total_pnl"]
+    )
+
+    portfolio_pnl.to_sql(
+        "portfolio_pnl",
         con=engine,
         if_exists="replace",
         index=False,
