@@ -167,13 +167,13 @@ def simulate_open_trade(
     if zscore > 0:
         # z positive: spread is too high → short A, long B
         direction = "SHORT"
-        stock1_stock = - 10000 / stock1_price 
-        stock2_stock = hedge_ratio * 10000 / stock2_price
+        stock1_stock = - 100000 / stock1_price 
+        stock2_stock = hedge_ratio * 100000 / stock2_price
     else:
         # z negative: spread is too low → long A, short B
         direction = "LONG"
-        stock1_stock = 10000 / stock1_price
-        stock2_stock = - hedge_ratio * 10000 / stock2_price 
+        stock1_stock = 100000 / stock1_price
+        stock2_stock = - hedge_ratio * 100000 / stock2_price 
 
     # estimate slippage costs on the position size
     entry_price_1_slipped = apply_slippage(
