@@ -1,0 +1,6 @@
+if a file doesn't specify, assume it is only trading 1 pair per window. Also, every test here is <5 mins stale data and 3.5 z score etc.
+
+CONCLUSION - CFDs seem to be very good at reducing the amount of capital required, but we need to place big enough orders for the trades not to run into minimum commissions, at which point the 
+profits are wiped out. Because of this paper trading will still go ahead on cash equities. 
+
+There is still the question of the money sitting in the account idle 95% of the time though. 
