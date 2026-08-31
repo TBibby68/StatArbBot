@@ -207,51 +207,15 @@ def simulate_open_trade(
 
     return open_trade
 
-def find_new_pair_and_force_close(
+def find_new_pair(
         window_id, 
-        engine, 
-        stock1_price, 
-        stock2_price, 
-        current_minute, 
-        current_datetime,
-        open_trade, 
-        completed_trades,
-        stock1_age,
-        stock2_age):
+        engine):
 
     # find the new pair to trade on and print information to terminal
     tradeable_pairs = find_tradeable_pairs(window_id, engine)
     
     if tradeable_pairs is not None:
         print("the value of the previous pair was too high, this is the new current p_value: ", str(tradeable_pairs["p_value"][0]))
-
-    # simulate the trade and return the pair. This would be None if you have closed out the pair from the last window, AND the relationship has broken down
-    if open_trade is not None:
-
-        assert open_trade is not None, (
-            f"CLOSE signal with no open trade. Window={window_id}"
-        )
-
-        assert current_minute >= open_trade.entry_minute, (
-            f"TIME TRAVEL!\n"
-            f"Window={window_id}\n"
-            f"entry_window={open_trade.window_id}, "
-            f"Entry={open_trade.entry_timestamp}\n"
-            f"Exit/current={current_minute}\n"
-            f"Entry z={open_trade.entry_zscore}\n"
-        ) 
-
-        simulate_close_trade(
-            stock1_price=stock1_price, 
-            stock2_price=stock2_price, 
-            current_minute=current_minute, 
-            current_datetime=current_datetime,
-            closed_trades=completed_trades, 
-            open_trade=open_trade, 
-            is_force_closure=True, 
-            zscore=None,
-            stock1_age=stock1_age,
-            stock2_age=stock2_age)
 
     # return the current best pair and None: the current open trade is always going to be None after we close
     return tradeable_pairs, None
@@ -267,30 +231,48 @@ def Calculate_Cointegrated_Pair(
         open_trade, 
         completed_trades,
         stock1_age,
-        stock2_age):
+        stock2_age
+        ):
 
     # if we don't have a pair currently, find a pair and print the results to the terminal
     if open_trade is None:
         tradeable_pairs = find_tradeable_pairs(window_id, engine)
-        print("this is the current p_value: ", str(tradeable_pairs["p_value"][0]))
     else: 
         # if we have a current pair, test if the relationship still exists
         tradeable_pairs = find_tradeable_pairs(window_id, engine, open_trade)
+
+        assert current_minute >= open_trade.entry_minute, (
+            f"TIME TRAVEL!\n"
+            f"Window={window_id}\n"
+            f"entry_window={open_trade.window_id}, "
+            f"Entry={open_trade.entry_timestamp}\n"
+            f"Exit/current={current_minute}\n"
+            f"Entry z={open_trade.entry_zscore}\n"
+        ) 
+
+        # we should close out positions by default here:
+        simulate_close_trade(
+            stock1_price=stock1_price, 
+            stock2_price=stock2_price, 
+            current_minute=current_minute, 
+            current_datetime=current_datetime,
+            closed_trades=completed_trades, 
+            open_trade=open_trade, 
+            is_force_closure=True, 
+            zscore=None,
+            stock1_age=stock1_age,
+            stock2_age=stock2_age
+            )
         
+        open_trade = None
+
         # close current position if the relationship break down, and find a new pair to trade on
         # this will never run if we have mutliple pairs - simpler!
         if tradeable_pairs is None:
-            tradeable_pairs, open_trade = find_new_pair_and_force_close(
+            tradeable_pairs, open_trade = find_new_pair(
                 window_id, 
-                engine, 
-                stock1_price, 
-                stock2_price, 
-                current_minute=current_minute, 
-                current_datetime=current_datetime,
-                open_trade=open_trade, 
-                completed_trades=completed_trades,
-                stock1_age=stock1_age,
-                stock2_age=stock2_age)
+                engine,
+                )
         else:
             # this will run if the last window's pair is the same as the current pair. 
             print("this is the current p_value: ", str(tradeable_pairs["p_value"][0]))
@@ -397,7 +379,18 @@ def run_backtest(
     mark_to_market_records = [] # list of dicts where each is indexed by the minute
     
     # stocks we are currently trading on
-    stock_universe = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF", ]
+    stock_universe = [
+        "XOM",   # Exxon Mobil
+        "CVX",   # Chevron
+        "COP",   # ConocoPhillips
+        "EOG",   # EOG Resources
+        "SLB",   # SLB
+        "MPC",   # Marathon Petroleum
+        "PSX",   # Phillips 66
+        "VLO",   # Valero Energy
+        "OXY",   # Occidental Petroleum
+        "KMI",   # Kinder Morgan
+    ]
 
     spread_volatility_window = pd.DataFrame(columns=[
         "window_id",
@@ -855,7 +848,7 @@ engine = create_engine(engine_string)
 data = pd.read_sql(
     """
     SELECT *
-    FROM backtesting_data_prices 
+    FROM backtesting_data_prices_energy
     ORDER BY minute
     """,
     con=engine

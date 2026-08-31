@@ -28,8 +28,9 @@ def get_signal(pair_key, price_a, price_b, open_trade, beta=1.0):
     pair_history = spread_histories[pair_key]
     pair_history.append(spread) 
 
-    zscore_series = pd.Series(pair_history)
-    current_z = compute_zscore(zscore_series).iloc[-1]
+    spread_series = pd.Series(pair_history)
+    zscore_series = compute_zscore(spread_series)
+    current_z = zscore_series.iloc[-1]
 
     previous_z = (
         zscore_series.iloc[-2]

@@ -14,7 +14,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'portfolio_pnl'
+            WHERE table_name = 'completed_trades'
         );
     """)).scalar()
 
@@ -24,7 +24,7 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM portfolio_pnl",
+            "SELECT * FROM completed_trades",
             con=engine
         )
 
@@ -40,7 +40,7 @@ with engine.connect() as conn:
             )
         #trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
 
-        output_file = r"C:\Users\tbibb\Downloads\portfolio_pnl.xlsx"
+        output_file = r"C:\Users\tbibb\Downloads\completed_trades.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -66,4 +66,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'portfolio_pnl' not found.")
+        print("Table 'completed_trades' not found.")

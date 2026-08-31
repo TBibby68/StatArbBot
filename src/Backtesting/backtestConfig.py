@@ -112,17 +112,41 @@ class BacktestConfig:
 
     force_close_at_window_end = True
 
-    trade_multiple_pairs = False
+    trade_multiple_pairs = True
 
     max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
-    max_concurrent_positions = 999 # pretty much just for debugging purposes
-
     # cfd assumptions
     cfd_commission_per_share = 0.005
     cfd_min_commission = 1.00
     cfd_margin_rate = 0.20
 
 class DataConfig:
-    tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+    us_bank_tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+    
+    energy_tickers = [
+        "XOM",   # Exxon Mobil
+        "CVX",   # Chevron
+        "COP",   # ConocoPhillips
+        "EOG",   # EOG Resources
+        "SLB",   # SLB
+        "MPC",   # Marathon Petroleum
+        "PSX",   # Phillips 66
+        "VLO",   # Valero Energy
+        "OXY",   # Occidental Petroleum
+        "KMI",   # Kinder Morgan
+    ]
+
+    tech_tickers = [
+        "AAPL",  # Apple
+        "MSFT",  # Microsoft
+        "NVDA",  # Nvidia
+        "AVGO",  # Broadcom
+        "ORCL",  # Oracle
+        "CRM",   # Salesforce
+        "ADBE",  # Adobe
+        "AMD",   # AMD
+        "QCOM",  # Qualcomm
+        "INTC",  # Intel
+    ]
     start_date = "2025-08-02"
     end_date = "2026-08-02"
