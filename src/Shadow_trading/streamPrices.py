@@ -113,7 +113,7 @@ def main():
 
     ib.connect(
         "127.0.0.1",
-        4001,
+        4002,
         clientId=1
     )
 

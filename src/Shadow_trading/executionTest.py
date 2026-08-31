@@ -5,7 +5,7 @@ ib = IB()
 
 ib.connect(
     "127.0.0.1",
-    4001,
+    4002, # 4002 for paper, 4001 for live!
     clientId=1
 )
 
