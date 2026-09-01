@@ -177,7 +177,7 @@ def main():
 
     try:
 
-        while True:
+        while market_is_open():
 
             timestamp = datetime.now(timezone.utc)
 
