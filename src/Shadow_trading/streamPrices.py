@@ -9,8 +9,24 @@ from handleSignals import handle_signal
 from hedgeRatio import hedge_ratio
 from collections import deque
 from execution import execute_pair, reverse_action, insert_completed_shadow_trade
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+import time as time_module
 
-PAPER_MODE = False
+NY_TIME = ZoneInfo("America/New_York")
+MARKET_OPEN = time(9, 30)
+MARKET_CLOSE = time(16, 0)
+
+# check whether the NYSE is open
+def market_is_open():
+    now = datetime.now(NY_TIME)
+
+    if now.weekday() >= 5:
+        return False
+
+    return MARKET_OPEN <= now.time() < MARKET_CLOSE
+
+PAPER_MODE = True
 
 # empty as it is edited in the signal function
 spread_history = deque(maxlen=100)
@@ -416,4 +432,12 @@ def main():
         ib.disconnect()
 
 if __name__ == "__main__":
+
+    # Wait until US market opens
+    while not market_is_open():
+        print("Market closed - waiting...")
+        time_module.sleep(30)
+
+    print("Market open - starting paper trader")
+
     main()

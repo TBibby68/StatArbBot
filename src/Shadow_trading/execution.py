@@ -90,7 +90,6 @@ def execute_pair(
 
     return fill1, fill2
 
-
 def reverse_action(action):
     return "SELL" if action == "BUY" else "BUY"
 
