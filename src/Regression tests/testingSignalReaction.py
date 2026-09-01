@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from Shadow_trading.handleSignals import handle_signal
 from sqlalchemy import create_engine
-from StatArbBot.config import engine_string
+from config import engine_string
 import pandas as pd
 
 state = {

@@ -4,7 +4,7 @@ from statsmodels.tsa.stattools import adfuller
 from sqlalchemy import create_engine
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
-from StatArbBot.config import engine_string
+from config import engine_string
 import backtestConfig as config
 
 # ============================================================

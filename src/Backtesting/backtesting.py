@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from engleGrangerQuery import find_tradeable_pairs
 from sqlalchemy import create_engine
-from StatArbBot.config import engine_string
+from config import engine_string
 import backtestConfig
 from cfd_modelling import calculate_cfd_costs
 
@@ -117,7 +117,7 @@ def simulate_close_trade(
         exit_price_2_slipped - open_trade.entry_price_2_slipped
     ) * open_trade.position_size_2
 
-    pnl_total_Slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
+    pnl_total_slipped = pnl_stock1_Slipped + pnl_stock2_Slipped
 
     # estimate the cfd commission costs (not including the spreads because the slippage model already does that + replacing the transaction costs):
     cfd_costs = calculate_cfd_costs(
@@ -125,7 +125,7 @@ def simulate_close_trade(
     )
 
     cfd_net_pnl = (
-        pnl_total_Slipped
+        pnl_total_slipped
         - cfd_costs.total_cost
     )
 
@@ -141,7 +141,7 @@ def simulate_close_trade(
             exit_price_2 = stock2_price,
             exit_zscore = zscore,
             gross_pnl = pnl_total,
-            gross_pnl_slipped = pnl_total_Slipped,
+            gross_pnl_slipped = pnl_total_slipped,
             transaction_costs = 0, # just hardcoding. In the next commit make it so we can switch between cfds and cash equity models
             cfd_costs = cfd_costs.total_cost,
             net_pnl = cfd_net_pnl,

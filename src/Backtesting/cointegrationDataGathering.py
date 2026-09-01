@@ -4,8 +4,7 @@ from statsmodels.tsa.stattools import coint
 from sqlalchemy import create_engine
 from concurrent.futures import ProcessPoolExecutor
 from itertools import combinations
-
-from StatArbBot.config import engine_string
+from config import engine_string
 import backtestConfig as config
 
 
