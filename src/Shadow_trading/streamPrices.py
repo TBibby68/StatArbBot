@@ -1,7 +1,7 @@
 from ib_insync import *
 import time
 from sqlalchemy import create_engine, text
-from StatArbBot.config import engine_string
+from config import engine_string
 from datetime import datetime, timezone
 import pandas as pd
 from signalGeneration import get_signal

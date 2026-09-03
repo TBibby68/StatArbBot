@@ -1,6 +1,6 @@
 from collections import deque
 import pandas as pd
-import StatArbBot.src.Backtesting.backtestConfig as config
+import src.Backtesting.backtestConfig as config
 import math
 
 # this is the file that contain functions that generate the signal to trade

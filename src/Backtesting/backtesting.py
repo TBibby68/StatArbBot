@@ -1,3 +1,6 @@
+from typing import Any
+from pandas import Series
+from Backtesting.backtestConfig import BacktestConfig, TradeEntry
 from signals import get_signal, reset_spread_histories
 import pandas as pd
 import numpy as np
@@ -377,6 +380,7 @@ def run_backtest(
     window_id = 0
     open_trade = None
     mark_to_market_records = [] # list of dicts where each is indexed by the minute
+    spread_history = []
     
     # stocks we are currently trading on
     stock_universe = [
@@ -411,7 +415,7 @@ def run_backtest(
     # While we still have [2 weeks] to trade on
     while trading_window_end + trading_window_size < len(data):
 
-        # reset so old spreads dont carry over to the next window and produce artificially inflated z scores!
+        # reset so old spreads don't carry over to the next window and produce artificially inflated z scores!
         reset_spread_histories()
 
         print(
@@ -440,12 +444,12 @@ def run_backtest(
             open_trade = None
             window_id += 1
             trading_window_end += trading_window_size
-            # dont need to advance the current timestamp because the DF is calculated based on this variable anyway later
+            # don't need to advance the current timestamp because the DF is calculated based on this variable anyway later
             current_minute += trading_window_size
             continue
 
         # list of all the trade info for each eligable pair for this window
-        pair_windows = []
+        eligible_pair_data = []
 
         # prepare the data for each pair we might want to trade on this window
         for _, pair_row in tradeable_pairs.iterrows():
@@ -457,7 +461,7 @@ def run_backtest(
 
             p_value = pair_row["p_value"]
 
-            pair_windows.append(
+            eligible_pair_data.append(
                 Prepare_Trading_Window(
                     pair,
                     current_minute,
@@ -498,89 +502,38 @@ def run_backtest(
             current_minute = int(row["minute"])
 
             # check whether either stock is using a stale price
-            current_timestamp = row["timestamp"] # this should really be used everywhere?
+            current_timestamp = row["timestamp"]
 
             # list of the signals for all tradeable pairs.
             candidate_signals = []
 
-            # signals and zscores keyed by the pair
+            # signals and z scores keyed by the pair
             pair_signals = {}
 
             # Defaults for this minute
             open_signal = None
             open_zscore = None
 
-            # calculate the signal on every eligeable pair
-            for window in pair_windows:
+            # for every eligible pair, calculate the signal and z score and extract the prices for this minute
+            candidate_signals, spreads = calculate_all_pair_signals(
+                candidate_signals,
+                config,
+                current_timestamp,
+                open_trade,
+                pair_signals,
+                eligible_pair_data,
+                row,
+                window_id,
+                spread_history,
+                )
 
-                # get the current stocks:
-                stock1 = window.stock1
-                stock2 = window.stock2
-
-                # get the current prices for this pair
-                stock1_price = row[stock1]
-                stock2_price = row[stock2]
-
-                stock1_last_update = row[f"{stock1}_last_update"]
-                stock2_last_update = row[f"{stock2}_last_update"]
-
-                stock1_age = (
-                    current_timestamp - stock1_last_update
-                ).total_seconds() / 60
-
-                stock2_age = (
-                    current_timestamp - stock2_last_update
-                ).total_seconds() / 60
-
-                # This pair should only see the open trade if
-                # THIS is actually the pair currently being held
-                pair_open_trade = None
-
-                if (
-                    open_trade is not None
-                    and open_trade.stock1 == stock1
-                    and open_trade.stock2 == stock2
-                ):
-                    pair_open_trade = open_trade
-
-                pair_key = (stock1, stock2)
-
-                # calculate the signal: using the hedge ratio for this pair
-                signal, zscore = get_signal(
-                    pair_key,
-                    np.log(stock1_price), 
-                    np.log(stock2_price), 
-                    open_trade=pair_open_trade, 
-                    beta=window.hedge_ratio
-                    )
-                
-                # Save this pair's current signal state
-                pair_signals[(stock1, stock2)] = {
-                    "signal": signal,
-                    "zscore": zscore,
-                    "window": window,
-                }
-
-                # if it is showing a signal to trade, then add it to the list:
-                if (
-                    signal == "OPEN" 
-                    and open_trade is None
-                    and stock1_age <= config.max_price_age 
-                    and stock2_age <= config.max_price_age
-                ):
-                    candidate_signals.append({
-                        "window": window,
-                        "zscore": zscore,
-                        "p_value": window.p_value,
-                        "stock1_price": stock1_price,
-                        "stock2_price": stock2_price,
-                    })
-
-                # end the pair selection here ----------------
+            # add the spreads to the ongoing list
+            spread_history.extend(spreads)
 
             # open a position on the "best" pair that is currently showing a signal
-            if open_trade is None and candidate_signals:
+            if open_trade is None and candidate_signals is not None:
 
+                # TODO: In this version we swap to the best pair always - need to edit this
                 chosen = choose_pair(candidate_signals)
 
                 print(f"opening a position on {chosen}")
@@ -596,10 +549,7 @@ def run_backtest(
                     zscore=chosen["zscore"],
                 )
 
-            # close and MTM tracking logic:
-
-            unrealised_pnl = 0
-
+            # Stock price age check: don't want stale data!
             if open_trade is not None:
 
                 open_pair_signal = pair_signals[
@@ -624,20 +574,7 @@ def run_backtest(
                     - row[f"{open_trade.stock2}_last_update"]
                 ).total_seconds() / 60
 
-                unrealised_pnl = calculate_unrealised_pnl(
-                    open_trade=open_trade,
-                    current_price_1=open_stock1_price,
-                    current_price_2=open_stock2_price
-                )
-
-                gross_exposure, long_exposure, short_exposure = (
-                    calculate_exposure(
-                        open_trade=open_trade,
-                        current_price_1=open_stock1_price,
-                        current_price_2=open_stock2_price,
-                    )
-                )
-
+            # Close the position:
             if open_signal == "CLOSE":
                 assert open_trade is not None, (
                     f"CLOSE signal with no open trade. Window={window_id}"
@@ -650,7 +587,6 @@ def run_backtest(
                     f"Entry={open_trade.entry_minute}\n"
                     f"Exit/current={current_minute}\n"
                     f"Entry z={open_trade.entry_zscore}\n"
-                    f"Exit z={zscore}"
                 )
 
                 print("closing a position")
@@ -669,6 +605,7 @@ def run_backtest(
                 
                 open_trade = None
 
+            # Open trade still held open:
             elif open_trade is not None:
                 # calculate mark-to-market PnL
                 unrealised_pnl = calculate_unrealised_pnl(
@@ -701,8 +638,17 @@ def run_backtest(
         # increment the window and time
         window_id += 1
         trading_window_end += trading_window_size
-    
-    # mtm postgres: these need to be indexed by the actual timestamp not the integer minute!
+
+    spread_history_df = pd.DataFrame(spread_history)
+
+    spread_history_df.to_sql(
+        "spread_history",
+        con=engine,
+        if_exists="replace",
+        index=False,
+    )
+
+    # mtm Postgres: these need to be indexed by the actual timestamp not the integer minute!
     mtm_df = pd.DataFrame(mark_to_market_records)
 
     portfolio_unrealised = (
@@ -838,6 +784,95 @@ def run_backtest(
         if_exists="replace",
         index=False,
     )
+
+def calculate_all_pair_signals(candidate_signals: list[Any], config: BacktestConfig, current_timestamp: Any,
+                               open_trade: TradeEntry | None, pair_signals: dict[Any, Any], eligible_pair_data: list[Any],
+                               row: Series, window_id, spread_history=None)\
+        -> tuple[Series | Any, Series | Any]:
+
+    # calculate the signal on every eligible pair for this minute
+    for pair in eligible_pair_data:
+
+        # get the current stocks:
+        stock1 = pair.stock1
+        stock2 = pair.stock2
+
+        # get the current prices for this pair
+        stock1_price = row[stock1]
+        stock2_price = row[stock2]
+
+        stock1_last_update = row[f"{stock1}_last_update"]
+        stock2_last_update = row[f"{stock2}_last_update"]
+
+        stock1_age = (
+                 current_timestamp - stock1_last_update
+         ).total_seconds() / 60
+
+        stock2_age = (
+                 current_timestamp - stock2_last_update
+         ).total_seconds() / 60
+
+        # This pair should only see the open trade if
+        # THIS is actually the pair currently being held
+        pair_open_trade = None
+
+        if (
+            open_trade is not None
+            and open_trade.stock1 == stock1
+            and open_trade.stock2 == stock2
+        ):
+            pair_open_trade = open_trade
+
+        pair_key = (stock1, stock2)
+
+        # calculate the signal: using the hedge ratio for this pair
+        signal, zscore, spread, spread_mean, spread_std = get_signal(
+            pair_key,
+            np.log(stock1_price),
+            np.log(stock2_price),
+            open_trade=pair_open_trade,
+            beta=pair.hedge_ratio
+        )
+
+        # Save this pair's current signal state
+        pair_signals[(stock1, stock2)] = {
+            "signal": signal,
+            "zscore": zscore,
+            "window": pair,
+        }
+
+        # if it is showing a signal to trade, then add it to the list:
+        if (
+            signal == "OPEN"
+            and open_trade is None
+            and stock1_age <= config.max_price_age
+            and stock2_age <= config.max_price_age
+        ):
+            candidate_signals.append({
+                "window": pair,
+                "zscore": zscore,
+                "p_value": pair.p_value,
+                "stock1_price": stock1_price,
+                "stock2_price": stock2_price,
+            })
+
+        # record the spread for the history
+        spread_history.append({
+            "timestamp": current_timestamp,
+            "window_id": window_id,
+            "stock1": stock1,
+            "stock2": stock2,
+            "hedge_ratio": pair.hedge_ratio,
+            "stock1_price": stock1_price,
+            "stock2_price": stock2_price,
+            "spread": spread, # these are the values we want to inspect!
+            "rolling_mean": spread_mean,
+            "rolling_std": spread_std,
+            "zscore": zscore,
+        })
+
+    # only return the signals and spreads for this specific minute across all the eligible pairs
+    return candidate_signals, spread_history
 
 # Implementation
 
