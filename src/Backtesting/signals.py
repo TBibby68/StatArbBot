@@ -9,17 +9,16 @@ spread_histories = defaultdict(
     lambda: deque(maxlen=config.BacktestConfig.zscore_window_size)
 )
 
-# need this so we dont use stale spread histories from when the hedge ratio was different
+# need this so we don't use stale spread histories from when the hedge ratio was different
 def reset_spread_histories():
     spread_histories.clear()
 
 def compute_spread(price_a, price_b, beta):
     return price_a - beta * price_b
 
-def get_signal(pair_key, price_a, price_b, open_trade, beta=1.0):
+def get_signal(pair_key, spread, open_trade):
 
     # add the spread to the rolling last (100) values 
-    spread = compute_spread(price_a, price_b, beta) # returning the spread itself
     pair_history = spread_histories[pair_key]
     pair_history.append(spread) 
 

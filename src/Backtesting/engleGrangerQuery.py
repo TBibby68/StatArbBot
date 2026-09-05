@@ -7,7 +7,7 @@ import backtestConfig as config
 def find_tradeable_pairs(current_window_id, engine, open_trade = None):
 
     bconfig = config.BacktestConfig
-    cointegration_result = None # this will stay as None if either the current pair is no longer cointegrated, or there isn't any cointegrated pair
+    tradeable_pairs = None # this will stay as None if either the current pair is no longer cointegrated, or there isn't any cointegrated pair
     # pull the cointegration results from the database 
 
     if bconfig.trade_multiple_pairs:
@@ -23,34 +23,23 @@ def find_tradeable_pairs(current_window_id, engine, open_trade = None):
         '''
         params = (current_window_id, bconfig.eg_sig_level,)
     else:
-        if open_trade != None:
-            query = '''
-            SELECT stock1, stock2, p_value
-            FROM cointegration_results_energy
-            WHERE window_id = %s AND p_value < %s
-            AND stock1 = %s AND stock2 = %s
-            AND stock1 <> 'minute'
-            AND stock2 <> 'minute'
-            '''
-            params = (current_window_id, bconfig.eg_sig_level, open_trade.stock1, open_trade.stock2,)
+        query = '''
+        SELECT stock1, stock2, p_value
+        FROM cointegration_results_energy
+        WHERE window_id = %s AND p_value < %s
+        AND stock1 <> 'minute'
+        AND stock2 <> 'minute'
+        ORDER BY p_value ASC
+        LIMIT 1
+        '''
+        params = (current_window_id, bconfig.eg_sig_level,)
 
-        else:
-            query = '''
-            SELECT stock1, stock2, p_value
-            FROM cointegration_results_energy
-            WHERE window_id = %s AND p_value < %s
-            AND stock1 <> 'minute'
-            AND stock2 <> 'minute'
-            ORDER BY p_value ASC
-            LIMIT 1
-            '''
-            params = (current_window_id, bconfig.eg_sig_level,)
-
-    cointegration_result = pd.read_sql(query, con=engine,params=params)
+    tradeable_pairs = pd.read_sql(query, con=engine,params=params)
 
     # set to None if it is empty so the rest of the checks work
-    if cointegration_result.empty:
-        cointegration_result = None
+    if tradeable_pairs.empty:
+        tradeable_pairs = None
+
     # return the result: if the current stock pair is still cointegrated, then we get it, and if we find a new one, we return it. 
     # if we can't find a cointegrated pair then we return None
-    return cointegration_result
+    return tradeable_pairs
