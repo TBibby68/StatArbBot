@@ -9,7 +9,7 @@ def find_tradeable_pair(current_window_id, engine, open_trade):
     if open_trade is not None:
 
         query = '''
-                SELECT stock1, stock2, p_value
+                SELECT stock1, stock2
                 FROM cointegration_results_energy
                 WHERE window_id = %s
                   AND p_value < %s
@@ -28,7 +28,7 @@ def find_tradeable_pair(current_window_id, engine, open_trade):
     else:
 
         query = '''
-                SELECT stock1, stock2, p_value
+                SELECT stock1, stock2
                 FROM cointegration_results_energy
                 WHERE window_id = %s
                   AND p_value < %s
@@ -51,4 +51,7 @@ def find_tradeable_pair(current_window_id, engine, open_trade):
     if result.empty:
         return None
 
-    return result.iloc[0]
+    return (
+        result.iloc[0]["stock1"],
+        result.iloc[0]["stock2"],
+    )

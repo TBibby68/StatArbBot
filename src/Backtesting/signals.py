@@ -3,7 +3,7 @@ import backtestConfig as config
 import numpy as np
 
 def calculate_spread_stats(
-    spread_history,
+    rolling_spreads,
     stock1_price,
     stock2_price,
     hedge_ratio,
@@ -14,10 +14,10 @@ def calculate_spread_stats(
         - hedge_ratio * np.log(stock2_price)
     )
 
-    spread_history.append(spread)
+    rolling_spreads.append(spread)
 
     # calc the mean and standard deviation of the spread
-    spread_series = pd.Series(spread_history)
+    spread_series = pd.Series(rolling_spreads)
 
     rolling_mean = spread_series.rolling(window=30).mean()
     rolling_std = spread_series.rolling(window=30).std()

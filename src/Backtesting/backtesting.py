@@ -355,7 +355,7 @@ def save_backtest_results(
 
 def prices_are_fresh(
         current_timestamp,
-        row: Series[Any],
+        row: Series,
         stock1,
         stock2,
         max_price_age,
@@ -398,16 +398,18 @@ def run_backtest(
     # Output / diagnostics
     completed_trades: list[dict] = []
     mark_to_market_records = []
-    spread_history = deque(maxlen=config.zscore_window_size)
+
+    # full history for post-mortem analysis
+    spread_diagnostics: list[dict] = []
+
+    # only the last few observations, and reset after every window
+    rolling_spreads = deque(maxlen=config.zscore_window_size)
 
     # Window configuration
     trading_window_size = config.trading_window_size
     cointegration_window_size = config.cointegration_window_size
     current_minute = cointegration_window_size
-    trading_window_end = (
-            cointegration_window_size
-            + trading_window_size
-    )
+    trading_window_end = cointegration_window_size + trading_window_size
 
     current_timestamp = data["timestamp"].iloc[0]
 
@@ -452,8 +454,8 @@ def run_backtest(
             continue
 
         # parse the stocks for easy access
-        stock1 = current_pair["stock1"]
-        stock2 = current_pair["stock2"]
+        stock1 = current_pair[0]
+        stock2 = current_pair[1]
 
         # prepare the df we will iterate over for this trading window
         columns = [
@@ -476,12 +478,22 @@ def run_backtest(
         assert current_window_df["minute"].is_monotonic_increasing
 
         # clear the spread history before we start the new window
-        spread_history.clear()
+        rolling_spreads.clear()
+
+        # get the df lookback period to calculate the hedge ratio
+        cointegration_df = data.loc[
+            data["minute"].between(
+                current_minute - cointegration_window_size,
+                current_minute,
+                inclusive="right",
+            ),
+            [stock1, stock2, "minute"],
+        ].copy()
 
         # calculate a static hedge ratio for the trading period (eg 2 weeks)
         hedge_ratio = compute_hedge_ratio(
-            np.log(stock1),
-            np.log(stock2),
+            np.log(cointegration_df[stock1]),
+            np.log(cointegration_df[stock2]),
         )
 
         print(f"starting trading {window_id} on {stock1}/{stock2}")
@@ -508,7 +520,7 @@ def run_backtest(
 
             # get a few useful spread stats
             spread, spread_mean, spread_std, current_z, previous_z = calculate_spread_stats(
-                spread_history,
+                rolling_spreads,
                 stock1_price,
                 stock2_price,
                 hedge_ratio,
@@ -522,7 +534,7 @@ def run_backtest(
             )
 
             # update the spread history for the current pair
-            spread_history.append({
+            spread_diagnostics.append({
                 "timestamp": current_timestamp,
                 "window_id": window_id,
                 "stock1": stock1,
@@ -596,7 +608,12 @@ def run_backtest(
         window_id += 1
 
     # save the results to Postgres for analysis
-    save_backtest_results(completed_trades, config, mark_to_market_records, spread_history)
+    save_backtest_results(
+        completed_trades,
+        config,
+        mark_to_market_records,
+        spread_diagnostics
+    )
 
 engine = create_engine(engine_string)
 
