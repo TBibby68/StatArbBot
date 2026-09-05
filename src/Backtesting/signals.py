@@ -1,34 +1,35 @@
 import pandas as pd
 import backtestConfig as config
-from collections import defaultdict, deque
+import numpy as np
 
-# this is the file that contain functions that generate the signal to trade
+def calculate_spread_stats(
+    spread_history,
+    stock1_price,
+    stock2_price,
+    hedge_ratio,
+):
+    # update the spread history with the current spread
+    spread = (
+        np.log(stock1_price)
+        - hedge_ratio * np.log(stock2_price)
+    )
 
-# Holds spread history internally: makes a double ended queue, keeping the most recent 100 elements and has automatic length control
-spread_histories = defaultdict(
-    lambda: deque(maxlen=config.BacktestConfig.zscore_window_size)
-)
+    spread_history.append(spread)
 
-# need this so we don't use stale spread histories from when the hedge ratio was different
-def reset_spread_histories():
-    spread_histories.clear()
+    # calc the mean and standard deviation of the spread
+    spread_series = pd.Series(spread_history)
 
-def compute_spread(price_a, price_b, beta):
-    return price_a - beta * price_b
-
-def get_signal(pair_key, spread, open_trade):
-
-    # add the spread to the rolling last (100) values 
-    pair_history = spread_histories[pair_key]
-    pair_history.append(spread) 
-
-    spread_series = pd.Series(pair_history)
-
-    # also returning the mean and std of the spread
     rolling_mean = spread_series.rolling(window=30).mean()
     rolling_std = spread_series.rolling(window=30).std()
 
-    zscore_series = (spread_series - rolling_mean) / rolling_std
+    # calc the current and previous z scores
+    zscore_series = (
+        (spread_series - rolling_mean)
+        / rolling_std
+    )
+
+    spread_mean = rolling_mean.iloc[-1]
+    spread_std = rolling_std.iloc[-1]
     current_z = zscore_series.iloc[-1]
 
     previous_z = (
@@ -37,19 +38,31 @@ def get_signal(pair_key, spread, open_trade):
         else float("nan")
     )
 
-    # only open a position if it has only just crossed the threshold
-    crossed_entry_threshold = (
-            pd.notna(previous_z)
-            and abs(previous_z) <= config.BacktestConfig.entry_threshold < abs(current_z)
+    return (
+        spread,
+        spread_mean,
+        spread_std,
+        current_z,
+        previous_z,
     )
 
+def get_signal(current_z, previous_z, open_trade):
+
+    # if we have ONLY JUST cross the threshold
+    crossed_entry_threshold = (
+        pd.notna(previous_z)
+        and abs(previous_z) <= config.BacktestConfig.entry_threshold
+        < abs(current_z)
+    )
+
+    # only open a trade if there isn't one already open
     if crossed_entry_threshold and open_trade is None:
-        return "OPEN", current_z, spread, rolling_mean, rolling_std
+        return "OPEN"
 
-    elif (
-        abs(current_z) < config.BacktestConfig.exit_threshold
-        and open_trade is not None
+    if (
+        open_trade is not None
+        and abs(current_z) < config.BacktestConfig.exit_threshold
     ):
-        return "CLOSE", current_z, spread, rolling_mean, rolling_std
+        return "CLOSE"
 
-    return None, current_z, spread, rolling_mean, rolling_std
+    return None

@@ -3,7 +3,6 @@ from enum import StrEnum
 from dataclasses import dataclass
 from dataclasses import asdict
 import datetime
-import pandas as pd
 
 # potential methods to explore for calculating the hedge ratio. 
 class HedgeRatioMethod(StrEnum):
@@ -18,14 +17,6 @@ class HedgeRatioMethod(StrEnum):
 class TradeCloseMethod(StrEnum):
     SIGNAL = "signal"
     FORCED = "forced"
-
-@dataclass
-class TradingPairWindow:
-    stock1: str
-    stock2: str
-    hedge_ratio: float
-    p_value: float
-    trading_df: pd.DataFrame
 
 @dataclass
 class SpreadRow:
@@ -72,9 +63,6 @@ class CompletedTrade:
     transaction_costs: float
     net_pnl: float
 
-    exit_price_age_1: int
-    exit_price_age_2: int
-
     # so we can easily inject to sql without nesting errors
     def to_dict(self):
         return {
@@ -91,8 +79,6 @@ class CompletedTrade:
             "transaction_costs": self.transaction_costs,
             "cfd_financing": self.cfd_costs,
             "net_pnl": self.net_pnl,
-            "exit_price_age_1": self.exit_price_age_1,
-            "exit_price_age_2": self.exit_price_age_2,
         }
 
 class BacktestConfig:
@@ -104,6 +90,7 @@ class BacktestConfig:
     eg_sig_level = 0.05
     trading_window_size = 3900
     zscore_window_size = 100
+    position_size = 10000
 
     transaction_cost_bps = 1
     slippage_bps = 1
