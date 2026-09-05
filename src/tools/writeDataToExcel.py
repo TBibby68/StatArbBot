@@ -1,6 +1,6 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
-from StatArbBot.config import engine_string
+from config import engine_string
 from openpyxl import load_workbook
 
 engine = create_engine(engine_string)
@@ -14,7 +14,7 @@ with engine.connect() as conn:
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
-            WHERE table_name = 'completed_trades'
+            WHERE table_name = 'spread_history'
         );
     """)).scalar()
 
@@ -24,7 +24,7 @@ with engine.connect() as conn:
 
         # Read the whole table
         trades_df = pd.read_sql(
-            "SELECT * FROM completed_trades",
+            "SELECT * FROM spread_history",
             con=engine
         )
 
@@ -40,7 +40,7 @@ with engine.connect() as conn:
             )
         #trades_df["timestamp"] = trades_df["timestamp"].dt.tz_localize(None)
 
-        output_file = r"C:\Users\tbibb\Downloads\completed_trades.xlsx"
+        output_file = r"C:\Users\tbibb\Downloads\spread_history.xlsx"
 
         # Get the name of the first worksheet
         workbook = load_workbook(output_file)
@@ -66,4 +66,4 @@ with engine.connect() as conn:
         )
 
     else:
-        print("Table 'completed_trades' not found.")
+        print("Table 'spread_history' not found.")

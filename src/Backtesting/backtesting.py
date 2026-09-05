@@ -252,7 +252,7 @@ def save_backtest_results(
         completed_trades: list[dict[Any, Any]],
         config: BacktestConfig,
         mark_to_market_records: list[Any],
-        spread_history: deque[Any]
+        spread_history: list[dict]
 ):
     # Convert backtest outputs to DataFrames
     spread_history_df = pd.DataFrame(spread_history)

@@ -90,7 +90,8 @@ class BacktestConfig:
     eg_sig_level = 0.05
     trading_window_size = 3900
     zscore_window_size = 100
-    position_size = 10000
+    # 100k is comfortably high enough so we don't hit minimum commission costs
+    position_size = 100000
 
     transaction_cost_bps = 1
     slippage_bps = 1
