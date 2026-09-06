@@ -1,1 +1,0 @@
-all the tests up to here have been on banks - other tests further down are on energy and tech

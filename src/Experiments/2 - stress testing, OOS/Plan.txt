@@ -1,8 +1,0 @@
-A few things we want to test:
-
-1) how trans costs + slippage effect the PnL
-2) how borrowing availability effects our ability to short stocks + borrow fees (likely so small as large cap equities and short holding times)
-
-----------------------------------
-validate the formulas in the phase analysis
-validate the entire framework just a bit more around the edges
