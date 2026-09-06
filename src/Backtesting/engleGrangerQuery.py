@@ -10,7 +10,7 @@ def find_tradeable_pair(current_window_id, engine, open_trade):
 
         query = '''
                 SELECT stock1, stock2
-                FROM cointegration_results_energy
+                FROM cointegration_results_banks
                 WHERE window_id = %s
                   AND p_value < %s
                   AND stock1 = %s
@@ -29,7 +29,7 @@ def find_tradeable_pair(current_window_id, engine, open_trade):
 
         query = '''
                 SELECT stock1, stock2
-                FROM cointegration_results_energy
+                FROM cointegration_results_banks
                 WHERE window_id = %s
                   AND p_value < %s
                   AND stock1 <> 'minute'

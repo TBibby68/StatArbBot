@@ -621,7 +621,7 @@ engine = create_engine(engine_string)
 price_data = pd.read_sql(
     """
     SELECT *
-    FROM backtesting_data_prices_energy
+    FROM backtesting_data_prices_banks
     ORDER BY minute
     """,
     con=engine

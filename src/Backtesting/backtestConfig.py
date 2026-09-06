@@ -63,27 +63,29 @@ class CompletedTrade:
 
 class BacktestConfig:
 
+    # thresholds
     entry_threshold = 3.5
     exit_threshold = 0.5
 
+    # window config
     cointegration_window_size = 24000
     eg_sig_level = 0.05
     trading_window_size = 3900
     zscore_window_size = 100
+
+    # trading config
     position_size = 100000 # 100k is comfortably high enough so we don't hit minimum commission costs
-
-    transaction_cost_bps = 1
-    slippage_bps = 1
-
     force_close_at_window_end = True
     trade_multiple_pairs = False
-
     max_price_age = 5 # only generate new signals if there has been price updates within the last 5 mins.
 
+    # trading frictions
+    slippage_bps = 1
     cfd_commission_per_share = 0.005
     cfd_min_commission = 1.00
     cfd_margin_rate = 0.20
 
 class DataConfig:
-    start_date = "2025-08-02"
+    tickers = ["JPM", "BAC", "C", "GS", "MS", "WFC", "USB", "TFC", "PNC", "COF"]
+    start_date = "2022-08-02"
     end_date = "2026-08-02"

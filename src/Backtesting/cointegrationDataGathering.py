@@ -100,9 +100,9 @@ def main():
 
     print("Loading backtesting data...")
 
-    # We don't need the minute counter for the cointegration calculation.
+    # do the coint calcs on the log prices
     backtesting_data = pd.read_sql(
-        "SELECT * FROM backtesting_data",
+        "SELECT * FROM backtesting_data_banks",
         con=engine
     ).drop(columns=["minute", "timestamp"])
 
@@ -215,7 +215,7 @@ def main():
     # --------------------------------------------------------
 
     results_df.to_sql(
-        "cointegration_results",
+        "cointegration_results_banks",
         con=engine,
         if_exists="replace",
         index=False,
@@ -223,21 +223,7 @@ def main():
         chunksize=1000,
     )
 
-    print("Results written to cointegration_results.")
-
-    # Optional verification
-    df_check = pd.read_sql(
-        """
-        SELECT *
-        FROM cointegration_results
-        ORDER BY window_id DESC
-        LIMIT 10
-        """,
-        con=engine,
-    )
-
-    print(df_check)
-
+    print("Results written to cointegration_results_banks.")
 
 if __name__ == "__main__":
     main()
