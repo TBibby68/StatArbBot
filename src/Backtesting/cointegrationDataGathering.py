@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from statsmodels.tsa.stattools import coint
+from statsmodels.tsa.stattools import coint # does the 2 step process of ADF and then EG all in one!
 from sqlalchemy import create_engine
 from concurrent.futures import ProcessPoolExecutor
 from itertools import combinations
