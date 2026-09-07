@@ -157,11 +157,16 @@ def simulate_close_trade(
         else backtestConfig.TradeCloseMethod.SIGNAL
     )
 
+    # need to do this so we don't get the time in nanoseconds
+    holding_minutes = (
+        current_datetime - open_trade.entry_timestamp
+    ).total_seconds() / 60
+
     # track the trade in our list
     closed_trades.append(
         backtestConfig.CompletedTrade(
             OpenLeg = open_trade,
-            holding_minutes = current_datetime - open_trade.entry_timestamp,
+            holding_minutes = holding_minutes,
             exit_minute = current_minute,
             exit_timestamp = current_datetime,
             exit_reason = exit_reason,
@@ -170,7 +175,7 @@ def simulate_close_trade(
             exit_zscore = zscore,
             gross_pnl = pnl_total,
             gross_pnl_slipped = pnl_total_slipped,
-            transaction_costs = 0, # just hardcoding. In the next commit make it so we can switch between cfds and cash equity models
+            transaction_costs = 0,
             cfd_costs = cfd_costs.total_cost,
             net_pnl = cfd_net_pnl,
             )
