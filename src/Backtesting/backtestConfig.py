@@ -28,7 +28,8 @@ class TradeEntry:
 class CompletedTrade:
     OpenLeg: TradeEntry
 
-    holding_minutes: int
+    market_time_held: int
+    total_time_held: int
     exit_reason: str
 
     exit_minute: int
@@ -47,7 +48,7 @@ class CompletedTrade:
     def to_dict(self):
         return {
             **asdict(self.OpenLeg),
-            "holding_minutes": self.holding_minutes,
+            "holding_minutes": self.total_time_held,
             "exit_reason": self.exit_reason,
             "exit_minute": self.exit_minute,
             "exit_timestamp": self.exit_timestamp,

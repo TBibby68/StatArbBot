@@ -4,7 +4,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from pandas import Series
+from pandas_market_calendars import MarketCalendar
 from sqlalchemy import create_engine
+import pandas_market_calendars as mcal
 
 import backtestConfig
 from Backtesting.backtestConfig import BacktestConfig
@@ -93,6 +95,39 @@ def calculate_exposure(
         short_exposure,
     )
 
+def calculate_trading_minutes(entry_timestamp, exit_timestamp, exchange):
+
+    entry = pd.Timestamp(entry_timestamp)
+    exit = pd.Timestamp(exit_timestamp)
+
+    if exit < entry:
+        raise ValueError("Exit timestamp cannot be before entry timestamp.")
+
+    # Get all <exchange> sessions that could overlap this trade
+    schedule = exchange.schedule(
+        start_date=entry.date(),
+        end_date=exit.date()
+    )
+
+    trading_minutes = 0.0
+
+    for _, session in schedule.iterrows():
+
+        market_open = session["market_open"]
+        market_close = session["market_close"]
+
+        # Find the part of this session during which
+        # the trade was actually open
+        overlap_start = max(entry, market_open)
+        overlap_end = min(exit, market_close)
+
+        if overlap_end > overlap_start:
+            trading_minutes += (
+                overlap_end - overlap_start
+            ).total_seconds() / 60
+
+    return trading_minutes
+
 def simulate_close_trade(
         stock1_price, 
         stock2_price, 
@@ -102,6 +137,7 @@ def simulate_close_trade(
         open_trade, 
         is_force_closure, 
         zscore: float | None, # this will be None for forced closures as they are so rare
+        exchange: MarketCalendar
         ):
     
     config = backtestConfig.BacktestConfig
@@ -157,8 +193,15 @@ def simulate_close_trade(
         else backtestConfig.TradeCloseMethod.SIGNAL
     )
 
+    # get the time held while the market was open
+    market_time_held = calculate_trading_minutes(
+        open_trade.entry_timestamp,
+        current_datetime,
+        exchange,
+    )
+
     # need to do this so we don't get the time in nanoseconds
-    holding_minutes = (
+    total_time_held = (
         current_datetime - open_trade.entry_timestamp
     ).total_seconds() / 60
 
@@ -166,7 +209,8 @@ def simulate_close_trade(
     closed_trades.append(
         backtestConfig.CompletedTrade(
             OpenLeg = open_trade,
-            holding_minutes = holding_minutes,
+            market_time_held = market_time_held,
+            total_time_held= total_time_held,
             exit_minute = current_minute,
             exit_timestamp = current_datetime,
             exit_reason = exit_reason,
@@ -393,6 +437,9 @@ def run_backtest(
 
     """
 
+    # exchange calendars
+    nyse = mcal.get_calendar("NYSE")
+
     # Initialise variables
     window_id = 0
     open_trade = None
@@ -444,6 +491,7 @@ def run_backtest(
                 open_trade=open_trade,
                 is_force_closure=True,
                 zscore=None,
+                exchange=nyse,
             )
 
             open_trade = None
