@@ -630,6 +630,7 @@ def run_backtest(
                     open_trade=open_trade,
                     is_force_closure=False,
                     zscore=current_z,
+                    exchange=nyse,
                 )
 
                 open_trade = None
