@@ -1,32 +1,47 @@
-# StatArbBot:
+Statistical Arbitrage Research — Cointegration-Based Pairs Trading
 
-This project is a trading algorithm, written in python, that follows a statistical arbitrage strategy for trading pairs that have a mean reverting spread. 
+1. Project Overview
 
-## Strategy:
+This project investigates the conditions under which a cointegration-based pairs trading strategy (Equities) can generate persistent returns after transaction costs. Using minute-level US equity data, I construct a rolling research and backtesting framework based on Engle-Granger cointegration and OLS-estimated hedge ratios. Initial experiments showed that apparent gross profitability is highly sensitive to execution costs, signal thresholds and market regime. The subsequent research therefore focuses on identifying when the signal survives realistic costs and whether those relationships persist out-of-sample.
 
-The strategy is based on the concept of cointegeration. In short cointegration means that there exists a combination of two time series that is **stationary**. 
-A time series is stationary if its mean, variance and autocovariances are time constant. For the purposes of trading, this means that the time series is "mean-reverting",
-that is, if the time series is above its mean, then it has a high likelihood of reverting back down to its mean in the near future. 
+2. Strategy Design
 
-This property is what underpins our trading strategy. We find two stocks that we think are cointegrated, and we then track this linear combination that is mean-reverting
-(we call this the spread), and then we produce trading signals based on how close or far away from the mean the spread is. 
+**Pair formation:** At each formation window, test candidate equity pairs (from a manually chosen basket of highly liquid stocks in the same sector) for cointegration using Engle-Granger. For qualifying pairs, estimate the hedge ratio using OLS and construct the spread:
 
-If we call this spread S_t, then we can track the difference between S_t and its mean over time, which will give us the below graph, where µ is the mean of S_t. If the spread goes beyond
-the point µ_1 then we will buy the spread(open a position) wherein we will short one stock and long the other. If the spread then goes back undr µ_0, then we will close out the current 
-open position, that is, long the stock we previously shorted, and sell off the stock we previosuly went long on. Cointegration of the two stocks is essential for this behaviour to 
-exist, and thus essential for our strategy to work. 
+$$
+S_t = P_{A,t} - \beta P_{B,t}
+$$
 
-![image](https://github.com/user-attachments/assets/8d7a34e8-793a-402f-b5b1-e6636261ed81)
+**Signal generation:** Standardise the spread using its estimated mean and standard deviation:
 
-The baseline works on a rolling 2 week window, meaning that we test the previous 3 months of data for this cointgration relationship, and then if we find that a pair has this relationship, we trade on that pair for the next 2 weeks, at which point
-we then recalculate the cointegration, and if the relationship has broken down, we close out the current position if one is open, and we try to find another pair to trade for the next 2 weeks. 
+$$
+z_t = \frac{S_t - \mu_S}{\sigma_S}
+$$
 
-## Assumptions:
+Enter when $\(|z_t|\)$ exceeds the entry threshold, taking opposing positions in the two securities according to the estimated hedge ratio. Exit when the spread mean-reverts and $\(|z_t|\)$ falls below the exit threshold.
 
-The key assumptions of this strategy (which are not very realistic) are that we are trading in a perfectly liquid market, with effectively infinite volumes, meaning that there is no risk posed by reductions in liquidity and thus inability to close positions, and there is also negligable spread. We also assume zero impact on the market from our trades (which at the level we are trading is relatively realisitc). 
+**Rolling implementation:** Cointegration relationships and hedge ratios are re-estimated on a rolling basis using historical formation windows, followed by separate trading windows (currently 3 month formation window and 2 week trading window). Only information available at the time of each trading decision is used to avoid look ahead bias.
 
-The purpose of this project is to investigate the statistical models that can produce a successful alpha generating strategy - implementing this in real life is another step.
+3. Key Results
 
-## Reproduce these results and investigate yourself:
+The research developed iteratively from a simple baseline. While the initial strategy exhibited positive gross performance, introducing realistic execution-cost assumptions completely destroyed any profitability the strategy supposedly had. The original strategy had a high number of weakly profitable trades, and so was very sensitive to transaction costs and slippage. The first experiment conducted was to move the entry threshold further away, with the aim to reduce turnover and increase the average PnL magnitude of trades. This experiment did exactly that, decreasing the gross PnL but increasing the net PnL back to being positive in the backtest period.
 
-To run the backtest + any experiments locally, I have included a data set of 3 years of data for the 10 biggest US Banks from 2022 to 2025, along with a table of rolling 3 month engle-granger test results for each possible pair for this time period. These can be found in the Experiments folder (you will still need to load these into postgres or edit the code to point towards excel to use it). This data is fixed to a 3 month cointegration look back, with a rolling 2 week rolling trading window, but if you want to test the strategy on different time periods, you can run the priceDataCapture.py -> cointegrationDataGathering.py
+The next stage of the research was estimating the return on capital. The initial strategy assumed frictionless short selling, which is not realistic. After estimating the minimum margin requirements of the strategy by tracking the MTM PnL in the backtest, it was apparent that despite the fact that most trades were winning and the strategy was making money, it required such a large amount of capital to run, that the ROC was very small. This motivated the idea of trading CFDs instead of cash equities. Since CFDs are "automatically leveraged" estimations of ROC increased significantly, and made the strategy look viable again. The practical drawback of this change is that to avoid the assumed minimum CFD commissions, the trade size must be relatively (to a retail trader like myself) large. 
+
+The next stage of the research was looking at trade timing. Trades tend to cluster around the market open, so much so that around 2/3 rds of the PnL can be attributed to trades that were opened within the first 5 minutes of the market opening. This is an ongoing area of research for this project, with the main question being: is this clustering due to data issues (unrealistic fill prices, optimistic slippage assumptions, bad data etc), and thus can we trust the validity of these results? If these results are to be trusted, then there might be a "quantitatively cheap" way of improving the PnL of the strategy significantly. That would be to trade on the US markets for the first hour that they are open, and then redeploy capital in Europe when those exchanges open, and then repeat in Asia when they open. This strategy could work because the majority of profit is earned in the first hour of trading, but the other 23 hours of the day the capital is sitting idle. No testing on this modification has been done, and will not be done before live deployment of the baseline either confirms or denies the previous concerns around data, however. 
+
+The next research questions that have to be answered before deploying the strategy live are around the operational side. Primarily if one side of a trade is rejected, but the other side goes through, then we are taking an unmodelled directional position in the market, which is not something the strategy accounts for. The initial idea to handle this is to unravel these trades with a certain time threshold, and accept the loss as a part of the execution costs. This is not something that is currently modelled at all by the strategy, and may make the execution costs higher than assumed. 
+
+The research also turned up some dead ends - hypotheses about how to improve the strategy that ended up not living up to statistical scrutiny. One of these that is particularly interesting is the question around market regimes. The strategy has period where it performs very well, and it has periods where it performs badly. It even has sharp inflection points, such as around th28 February 2026 - before this the strategy was losing money, and then after this up to the end of the backtest the strategy made a lot of money. An initial hypothesis was the volatility caused by the Iran war, which started at this inflection point, but upon running bootstrap tests looking at both VIX and spread volatility, the data seem to suggest that this was not the driving factor of increased returns.
+
+An important note to make is that this project currently lacks any OOS testing, and only has a backtest. Initially the backtest was on the period August 2022 - August 2025, and an OOS test from August 2025 - August 2026 was included. I then used the OOS dataset to further investigate the strategy, so this dataset stopped being OOS, and I have now included it in the backtest dataset.
+
+Currently, I aim to deploy a small amount of capital to this strategy to test whether my assumptions are realistic, and if so, there are some more research questions that need answering before I can scale the strategy in any meaningful way. These are summarised below
+
+"why do trades that are held longer than average have significantly worse PnL"? An idea would be to impose a cut off for positions, beyond which we close them out, and then wait for another entry signal. 
+
+"Does homogeneity of baskets of stocks effect returns"? I ran the strategy on Bank stocks, Tech stocks and Energy stocks, and noticed that energy stocks perform the best, and tech stocks the worst. A hypothesis is that energy stocks are much more homogeneous, because they all share the same underlying price factors: energy price, whereas 2 tech companies can have radically different business models, but be categorised both as "tech" - think Apple, Amamzon, Broadcomm (consumer hardware, Cloud computing, Telecoms). I have some ideas around measuring homogeneity using hyperbolic distance between stocks, but this is something that is a lot more complex than other questions, and may turn out to be a research dead end so is shelved as a question for the future currently. 
+
+"Can we deploy the capital in another strategy while the current stat arb one isn't trading"? This connects to the question around global exchange rotations, and is something that could be as simple as putting the money in Bonds to give us an extra few percentage points of ROC, or it could include running an uncorrelated strategy which takes advantage of mean reversion not being particularly profitable while it is trading (possibly a momentum based strategy). 
+
+"Can we detect when we are in a good market regime for this strategy"? This is potentially the biggest unanswered question, and simultaneously likely the hardest to answer. Currently I think the Iran war somehow made the strategy more profitable, but I have no mechanism to explain why that would be the case. 
